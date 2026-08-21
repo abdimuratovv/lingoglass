@@ -1,0 +1,14 @@
+# Repo ichida hamma matn fayllari LF bo'lib saqlanadi va LF bo'lib checkout qilinadi.
+# Windows'dagi core.autocrlf=true ni bekor qiladi — aks holda Prettier (endOfLine: "lf")
+# toza clone'dan keyin har bir faylni "buzilgan" deb hisoblaydi.
+* text=auto eol=lf
+
+# Binar fayllar — hech qanday konvertatsiya qilinmasin.
+*.webp binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
