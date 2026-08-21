@@ -1,5 +1,8 @@
 # LingoGlass
 
+[![CI](https://github.com/abdimuratovv/lingoglass/actions/workflows/ci.yml/badge.svg)](https://github.com/abdimuratovv/lingoglass/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-E63946.svg)](LICENSE)
+
 Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn konsepsiyasi — _Light Theme Liquid Glassmorphism_: shaffof/blur'langan panellar va `layoutId` orqali "suyuq" animatsiyali navigatsiya indikatori.
 
 > **Loyiha holati:** faqat UI maketi. Backend, autentifikatsiya va ma'lumotlar bazasi hali ulanmagan — barcha ma'lumot (kurslar, leaderboard, foydalanuvchilar) kodga hardcoded qilingan. Boshlang'ich Supabase schema qoralamasi [`supabase/migrations/`](supabase/migrations/) da bor, lekin hech qanday loyihaga qo'llanmagan.
