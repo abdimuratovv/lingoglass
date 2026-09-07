@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LayoutDashboard, BookMarked, Trophy, Settings, Shield, Sparkles, LogOut } from 'lucide-react';
+import { useAuth } from '../context/useAuth';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
@@ -13,6 +14,7 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const { signOut } = useAuth();
 
   return (
     <aside className="hidden md:flex flex-col w-64 p-6">
@@ -34,7 +36,10 @@ export function Sidebar() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-white/10">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-navy/70 hover:text-charcoal transition-colors duration-200">
+          <button
+            onClick={() => void signOut()}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-navy/70 hover:text-charcoal transition-colors duration-200"
+          >
             <LogOut size={20} />
             <span>Log Out</span>
           </button>

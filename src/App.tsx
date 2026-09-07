@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TopNav } from './components/TopNav';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { MyCourses } from './pages/MyCourses';
 import { CourseDetail } from './pages/CourseDetail';
@@ -11,6 +13,23 @@ import { Settings } from './pages/Settings';
 import { AdminPage } from './pages/admin/AdminPage';
 
 export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/*"
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  );
+}
+
+/** Sidebar + TopNav + MobileNav bilan o'ralgan asosiy layout -- faqat auth qilingan userlarga. */
+function AppShell() {
   const location = useLocation();
 
   return (

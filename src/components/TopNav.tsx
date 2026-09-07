@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Bell, LogOut, Camera, X } from 'lucide-react';
+import { useAuth } from '../context/useAuth';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -46,6 +47,7 @@ function useDropdownA11y(
 }
 
 export function TopNav() {
+  const { signOut } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -405,7 +407,10 @@ export function TopNav() {
 
                   {}
                   <div className="border-t border-navy/5 p-3">
-                    <button className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-red-500 hover:bg-red-50 transition-colors font-medium">
+                    <button
+                      onClick={() => void signOut()}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-red-500 hover:bg-red-50 transition-colors font-medium"
+                    >
                       <LogOut size={16} />
                       Log Out
                     </button>

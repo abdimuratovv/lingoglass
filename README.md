@@ -5,19 +5,20 @@
 
 Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn konsepsiyasi — _Light Theme Liquid Glassmorphism_: shaffof/blur'langan panellar va `layoutId` orqali "suyuq" animatsiyali navigatsiya indikatori.
 
-> **Loyiha holati:** faqat UI maketi. Backend, autentifikatsiya va ma'lumotlar bazasi hali ulanmagan — barcha ma'lumot (kurslar, leaderboard, foydalanuvchilar) kodga hardcoded qilingan. Boshlang'ich Supabase schema qoralamasi [`supabase/migrations/`](supabase/migrations/) da bor, lekin hech qanday loyihaga qo'llanmagan.
+> **Loyiha holati:** UI maketi + Supabase auth infratuzilmasi (signup/login/logout, protected route). Backend haqiqiy loyihaga hali ulanmagan — `.env.local` to'ldirilmaguncha faqat `/login` sahifasi ochiladi, real autentifikatsiya ishlamaydi. Kurslar/leaderboard ma'lumoti hamon kodga hardcoded ([`src/data/courses.ts`](src/data/courses.ts)). Boshlang'ich Supabase schema qoralamasi [`supabase/migrations/`](supabase/migrations/) da bor, lekin hech qanday loyihaga qo'llanmagan.
 
 ## Texnologiyalar
 
-| Qatlam     | Yechim                                                   |
-| ---------- | -------------------------------------------------------- |
-| UI         | React 19 + TypeScript 5.8 (`strict`)                     |
-| Build      | Vite 6                                                   |
-| Routing    | `react-router-dom` 7 (client-side SPA)                   |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom glass CSS |
-| Animatsiya | `motion` (Framer Motion) — `layoutId` shared-layout      |
-| Ikonkalar  | `lucide-react`                                           |
-| Sifat      | ESLint 10 (flat config) + Prettier                       |
+| Qatlam     | Yechim                                                                  |
+| ---------- | ----------------------------------------------------------------------- |
+| UI         | React 19 + TypeScript 5.8 (`strict`)                                    |
+| Build      | Vite 6                                                                  |
+| Routing    | `react-router-dom` 7 (client-side SPA)                                  |
+| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom glass CSS                |
+| Animatsiya | `motion` (Framer Motion) — `layoutId` shared-layout                     |
+| Ikonkalar  | `lucide-react`                                                          |
+| Backend    | Supabase (`@supabase/supabase-js`) — auth ulangan, DB hali qo'llanmagan |
+| Sifat      | ESLint 10 (flat config) + Prettier                                      |
 
 ## Ishga tushirish
 
@@ -25,8 +26,11 @@ Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn kon
 
 ```bash
 npm install
+cp .env.example .env.local   # keyin VITE_SUPABASE_URL va VITE_SUPABASE_ANON_KEY'ni to'ldiring
 npm run dev
 ```
+
+`.env.local` to'ldirilmasa ham dev server ochiladi — faqat `/login` sahifasi ko'rinadi, tizimga kirib bo'lmaydi (konsolda ogohlantirish chiqadi). Supabase loyihasi va kalitlar haqida [Backend (Supabase)](#backend-supabase) bo'limiga qarang.
 
 Dev server: <http://localhost:3000>
 
@@ -46,28 +50,35 @@ Har push va PR'da [GitHub Actions](.github/workflows/ci.yml) shu to'rttasini (li
 
 ## Marshrutlar
 
-| Yo'l                 | Sahifa                                                      |
-| -------------------- | ----------------------------------------------------------- |
-| `/`                  | Dashboard — learning path, skill kartalari, recent activity |
-| `/courses`           | My Courses — kurslar grid'i                                 |
-| `/courses/:courseId` | Course Detail — darslar ro'yxati va progress                |
-| `/leaderboard`       | Leaderboard — top-3 podium + reyting                        |
-| `/settings`          | Settings — 4 ta tab                                         |
-| `/admin`             | Admin — content / quizzes / users tab'lari                  |
+| Yo'l                 | Sahifa                                                      | Himoyalangan? |
+| -------------------- | ----------------------------------------------------------- | :-----------: |
+| `/login`             | Kirish / ro'yxatdan o'tish (Supabase auth)                  |       —       |
+| `/`                  | Dashboard — learning path, skill kartalari, recent activity |      ✅       |
+| `/courses`           | My Courses — kurslar grid'i                                 |      ✅       |
+| `/courses/:courseId` | Course Detail — darslar ro'yxati va progress                |      ✅       |
+| `/leaderboard`       | Leaderboard — top-3 podium + reyting                        |      ✅       |
+| `/settings`          | Settings — 4 ta tab                                         |      ✅       |
+| `/admin`             | Admin — content / quizzes / users tab'lari                  |      ✅       |
 
-Noma'lum yo'l `/` ga, mavjud bo'lmagan `courseId` esa `/courses` ga redirect qiladi.
+Himoyalangan marshrutlarga sessiyasiz kirilsa `/login`ga redirect qilinadi ([`ProtectedRoute`](src/components/ProtectedRoute.tsx)), kirgandan keyin qaysi sahifadan kelgan bo'lsa o'sha yerga qaytariladi. Noma'lum yo'l `/` ga, mavjud bo'lmagan `courseId` esa `/courses` ga redirect qiladi.
 
 ## Loyiha tuzilishi
 
 ```
 src/
-├── main.tsx           # BrowserRouter + createRoot entry point
-├── App.tsx            # Layout shell (Sidebar + TopNav + MobileNav) + <Routes>
-├── index.css          # Tailwind @theme tokenlar + glassmorphism CSS sinflari
-├── data/courses.ts    # Course/Lesson type, coursesData, getCourseStats()
-├── components/        # TopNav, Sidebar, MobileNav, ui/Toggle
-└── pages/             # Dashboard, MyCourses, CourseDetail, Leaderboard,
-                       # Settings, admin/*
+├── main.tsx                 # BrowserRouter + AuthProvider + createRoot entry point
+├── App.tsx                  # /login + himoyalangan AppShell (Sidebar+TopNav+MobileNav) <Routes>
+├── index.css                # Tailwind @theme tokenlar + glassmorphism CSS sinflari
+├── vite-env.d.ts             # import.meta.env uchun TS turlari (VITE_SUPABASE_*)
+├── lib/supabaseClient.ts     # Supabase klienti + isSupabaseConfigured flag
+├── context/
+│   ├── authContext.ts         # AuthContext + AuthContextValue turi (faqat non-komponent)
+│   ├── AuthContext.tsx         # <AuthProvider> — session holati, signIn/signUp/signOut
+│   └── useAuth.ts              # useAuth() hook
+├── data/courses.ts           # Course/Lesson type, coursesData, getCourseStats()
+├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle
+└── pages/                     # Login, Dashboard, MyCourses, CourseDetail, Leaderboard,
+                               # Settings, admin/*
 ```
 
 ## Dizayn tizimi
@@ -80,12 +91,30 @@ Barcha glass qatlamlari [`src/index.css`](src/index.css) da markazlashgan — ya
 
 Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color-charcoal: #2B2D42` (matn), `--color-navy: #1D3557` (ikkinchi darajali matn).
 
+## Backend (Supabase)
+
+1. [supabase.com/dashboard](https://supabase.com/dashboard)da loyiha yarating.
+2. **Project Settings → API** dan `Project URL` va `anon public` kalitni oling.
+3. `.env.example`ni `.env.local`ga nusxalab, ikkalasini to'ldiring:
+   ```
+   VITE_SUPABASE_URL=https://xxxxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJ...
+   ```
+4. [`supabase/migrations/20260817000000_init_schema.sql`](supabase/migrations/20260817000000_init_schema.sql) ni loyihangizning SQL Editor'ida ishga tushiring (jadvallar, RLS policy'lar, `get_course_stats()`/`submit_quiz_answer()` funksiyalari).
+5. `npm run dev` — endi `/login` sahifasida haqiqiy signup/login ishlaydi.
+
+`.env.local` **hech qachon commit qilinmaydi** (`.gitignore`da). `anon` kalit RLS orqali himoyalangan, klient tomonda ishlatilishi uchun mo'ljallangan — lekin `service_role` kalitini hech qachon frontend kodiga qo'ymang.
+
+**Hozircha ulanmagan:** kurslar/progress/XP/leaderboard ma'lumoti hamon `src/data/courses.ts`dagi hardcoded holatda — faqat auth (signup/login/logout) real Supabase'ga ulangan. Schema'dagi qolgan jadvallar (`courses`, `lesson_progress`, `xp_events`, `quizzes`, ...) frontend'ga hali bog'lanmagan.
+
 ## Keyingi qadamlar
 
-- [ ] Supabase backend'ni ulash (auth, real progress persistensiyasi, XP tizimi)
+- [x] Supabase auth ulash (signup/login/logout, protected route)
+- [ ] `coursesData`/leaderboard/XP'ni hardcoded'dan real Supabase query'ga o'tkazish
 - [ ] Test infratuzilmasi (hozircha test yo'q)
 - [ ] Vizual accessibility audit (rang kontrasti, `prefers-reduced-motion`)
 - [ ] Placeholder rasmlarni (`picsum.photos`) real assetlarga almashtirish
+- [ ] `dist/assets/*.js` 500kB dan katta (Vite ogohlantiradi) — `manualChunks` bilan bo'lish ko'rib chiqilsin
 
 ## Xavfsizlik eslatmasi
 

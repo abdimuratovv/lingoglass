@@ -6,21 +6,22 @@ Bu fayl **LingoGlass** loyihasi bo'yicha Claude uchun doimiy gid (Obsidian/ikkin
 
 **LingoGlass** — ingliz tili o'rganish platformasi uchun **frontend dashboard prototipi**. Dizayn konsepsiyasi: _Light Theme Liquid Glassmorphism_ — shaffof/blur'langan panellar + `layoutId` orqali "suyuq" navigatsiya indikatori.
 
-**Hozirgi holat: faqat UI maketi, lekin endi ko'p fayllik arxitektura va client-side routing bilan.** Backend, auth, DB, real API chaqiruvi yo'q — shu jumladan Gemini AI ham, va endi bundle'da uning kaliti uchun joy ham yo'q (§8 ga qarang). Barcha ma'lumot (`coursesData`, leaderboard, userlar) hardcoded, lekin endi mavzu bo'yicha alohida fayllarga bo'lingan (§3 ga qarang).
+**Hozirgi holat: UI maketi + Supabase auth infratuzilmasi ulangan (2026-09-06, §8 ga qarang).** Signup/login/logout va protected route ishlaydi (haqiqiy Supabase loyihasiga `.env.local` orqali ulanganda). Kurslar/leaderboard/XP ma'lumoti hamon **hardcoded** — faqat auth real backend'ga bog'langan, qolgan schema (`courses`, `lesson_progress`, `xp_events`, `quizzes`, ...) hali frontend'ga ulanmagan. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
 
 Git repozitoriy — **ha**. Remote: <https://github.com/abdimuratovv/lingoglass> (`origin`, `main` branch). 2026-08-21 da `git init` qilinib, bitta boshlang'ich commit bilan push qilindi — §8 dagi 2026-08-21 yozuviga qarang.
 
 ## 2. Texnologiyalar
 
-| Qatlam     | Yechim                                               | Versiya                                      |
-| ---------- | ---------------------------------------------------- | -------------------------------------------- |
-| UI         | React + TypeScript                                   | React 19.2.8, TS ~5.8                        |
-| Build      | Vite                                                 | 6.x, port 3000 (dev) / 4173 (preview)        |
-| Routing    | `react-router-dom`                                   | 7.18.2 — pastdagi eslatmaga qarang           |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS   | —                                            |
-| Animatsiya | `motion` (Framer Motion)                             | `LayoutGroup`, `AnimatePresence`, `layoutId` |
-| Ikonkalar  | `lucide-react`                                       | —                                            |
-| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas) | —                                            |
+| Qatlam     | Yechim                                                      | Versiya                                       |
+| ---------- | ----------------------------------------------------------- | --------------------------------------------- |
+| UI         | React + TypeScript                                          | React 19.2.8, TS ~5.8                         |
+| Build      | Vite                                                        | 6.x, port 3000 (dev) / 4173 (preview)         |
+| Routing    | `react-router-dom`                                          | 7.18.2 — pastdagi eslatmaga qarang            |
+| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS          | —                                             |
+| Animatsiya | `motion` (Framer Motion)                                    | `LayoutGroup`, `AnimatePresence`, `layoutId`  |
+| Ikonkalar  | `lucide-react`                                              | —                                             |
+| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas)        | —                                             |
+| Backend    | Supabase (`@supabase/supabase-js`) — **faqat auth** ulangan | ^2.115.0 — §8 dagi 2026-09-06 yozuviga qarang |
 
 Buyruqlar ([package.json](package.json)):
 
@@ -45,6 +46,7 @@ lingoglass/
 ├── eslint.config.js         → ESLint flat config (typescript-eslint + react-hooks + react-refresh + eslint-config-prettier)
 ├── .prettierrc.json         → Prettier sozlamalari (singleQuote, trailingComma: all, printWidth: 120)
 ├── LICENSE                   → MIT, © 2026 Tursinbay Abdimuratov
+├── .env.example               → VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY namunasi (haqiqiy qiymatlar .env.local'da, git'ga tushmaydi)
 ├── .gitignore                → node_modules/dist/.env*/.claude/settings.local.json va h.k.
 ├── .editorconfig             → utf-8, LF, 2 space indent
 ├── .gitattributes            → `* text=auto eol=lf` — Windows core.autocrlf=true ni bekor qiladi (§8 dagi 2026-08-21 yozuviga qarang)
@@ -52,18 +54,27 @@ lingoglass/
 ├── .github/workflows/ci.yml  → GitHub Actions: npm ci → lint → typecheck → format:check → build (Node 22.x)
 ├── .claude/launch.json       → preview_start konfiguratsiyalari: lingoglass-dev (npm run dev, 3000), lingoglass-preview (npm run preview, 4173)
 ├── src/
-│   ├── main.tsx              → StrictMode + BrowserRouter + createRoot entry point
+│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + createRoot entry point
+│   ├── vite-env.d.ts          → import.meta.env uchun TS turlari (VITE_SUPABASE_URL/ANON_KEY)
 │   ├── index.css             → Tailwind @theme tokenlar + glassmorphism CSS sinflari + hide-scrollbar/pb-safe
-│   ├── App.tsx                → ~53 qator: layout shell (Sidebar + TopNav + MobileNav) + <Routes>
+│   ├── App.tsx                → /login (ochiq) + /* ProtectedRoute ichida AppShell (Sidebar+TopNav+MobileNav+<Routes>)
+│   ├── lib/
+│   │   └── supabaseClient.ts  → createClient() + isSupabaseConfigured flag (placeholder URL bilan crash oldini oladi, §8 dagi 2026-09-06 yozuviga qarang)
+│   ├── context/
+│   │   ├── authContext.ts     → AuthContext + AuthContextValue turi (faqat non-komponent — react-refresh lint qoidasi uchun ajratilgan)
+│   │   ├── AuthContext.tsx    → <AuthProvider> — session holati, signIn/signUp/signOut (tarmoq xatolarini try/catch bilan tutadi)
+│   │   └── useAuth.ts         → useAuth() hook
 │   ├── data/
 │   │   └── courses.ts         → Course/Lesson type, coursesData, getCourseStats() — progress% shu yerdan hisoblanadi
 │   ├── components/
-│   │   ├── TopNav.tsx          → ~333 qator: qidiruv/bildirishnoma/profil paneli (o'zgarmagan)
-│   │   ├── Sidebar.tsx          → desktop sidebar, useLocation() orqali active holat
+│   │   ├── TopNav.tsx          → ~333 qator: qidiruv/bildirishnoma/profil paneli + Log Out endi signOut()ga ulangan
+│   │   ├── Sidebar.tsx          → desktop sidebar, useLocation() orqali active holat + Log Out signOut()ga ulangan
 │   │   ├── MobileNav.tsx        → mobil pastki nav, useLocation() orqali active holat
+│   │   ├── ProtectedRoute.tsx   → session yo'q bo'lsa /login'ga redirect (kelgan joyini location.state.from'da saqlaydi)
 │   │   └── ui/
 │   │       └── Toggle.tsx        → Settings'dagi takrorlangan switch markup shu yerga chiqarilgan
 │   └── pages/
+│       ├── Login.tsx          → email/parol signin+signup formasi, glass-panel dizayniga mos
 │       ├── Dashboard.tsx
 │       ├── MyCourses.tsx
 │       ├── CourseDetail.tsx      → useParams() bilan courseId oladi; topilmasa /courses'ga redirect
@@ -83,17 +94,20 @@ lingoglass/
 
 ## 4. Arxitektura / navigatsiya
 
-Router **bor** — `react-router-dom` (`BrowserRouter`, [src/main.tsx](src/main.tsx) da `<App />`ni o'raydi). Marshrutlar [src/App.tsx](src/App.tsx) da e'lon qilingan:
+Router **bor** — `react-router-dom` (`BrowserRouter` + `AuthProvider`, [src/main.tsx](src/main.tsx) da `<App />`ni o'raydi). [src/App.tsx](src/App.tsx) endi ikki qavatli: tashqi `<Routes>` `/login`ni ochiq qoldiradi, qolgan hammasi (`/*`) `<ProtectedRoute>` ichidagi `AppShell`ga tushadi, ichki marshrutlar o'sha yerda e'lon qilingan (§8 dagi 2026-09-06 yozuviga qarang):
 
-| Yo'l                 | Komponent                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `/`                  | `Dashboard`                                                                                |
-| `/courses`           | `MyCourses`                                                                                |
-| `/courses/:courseId` | `CourseDetail` — `courseId` `coursesData`da topilmasa `<Navigate to="/courses" replace />` |
-| `/leaderboard`       | `Leaderboard`                                                                              |
-| `/settings`          | `Settings`                                                                                 |
-| `/admin`             | `AdminPage` (ichida `content`/`quizzes`/`users` tab'lari `useState` bilan)                 |
-| `*` (noma'lum yo'l)  | `<Navigate to="/" replace />`                                                              |
+| Yo'l                 | Komponent                                                                                  | Himoyalangan? |
+| -------------------- | ------------------------------------------------------------------------------------------ | :-----------: |
+| `/login`             | `Login` — signin/signup formasi, `useAuth()` orqali                                        |     yo'q      |
+| `/`                  | `Dashboard`                                                                                |      ha       |
+| `/courses`           | `MyCourses`                                                                                |      ha       |
+| `/courses/:courseId` | `CourseDetail` — `courseId` `coursesData`da topilmasa `<Navigate to="/courses" replace />` |      ha       |
+| `/leaderboard`       | `Leaderboard`                                                                              |      ha       |
+| `/settings`          | `Settings`                                                                                 |      ha       |
+| `/admin`             | `AdminPage` (ichida `content`/`quizzes`/`users` tab'lari `useState` bilan)                 |      ha       |
+| `*` (noma'lum yo'l)  | `<Navigate to="/" replace />`                                                              |      ha       |
+
+`ProtectedRoute` session yo'qligida `<Navigate to="/login" replace state={{ from: location.pathname }} />` qiladi; `Login` sahifasi kirgandan keyin shu `from`ga qaytaradi (aks holda `/`ga).
 
 `Sidebar`/`MobileNav` faol holatni `useLocation().pathname`dan hisoblaydi (`/courses/:id` ham "My Courses"ni yoritadi, chunki `startsWith('/courses')` tekshiriladi). Ikkalasi ham endi haqiqiy `<Link>` (`<a href>`) — avvalgi `<button onClick={setState}>` o'rniga.
 
@@ -127,7 +141,7 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 
 1. Accessibility strukturaviy/semantik jihatdan yaxshi holatda (§8 dagi 4-bosqich yozuviga qarang — icon-only tugmalar, progress-bar'lar, tab-almashtiruvchilar, rang+ikonka orqali uzatiladigan ma'lumot hammasi ko'rib chiqilgan), lekin **vizual** audit (rang kontrasti, `prefers-reduced-motion`, ekran o'lchamlarida real screen-reader/klaviatura sinovi) hali qilinmagan — bu sessiyada Browser pane haqiqiy fokus/compositing holatiga ega bo'lmagani uchun (`document.hasFocus()` doim `false`) vizual/fokus holatlarini avtomatik tekshirib bo'lmadi, faqat build'dagi CSS qoidalari va DOM/ARIA atributlari orqali tasdiqlandi.
 2. Test yo'q (ESLint + Prettier endi bor, §8 dagi 5-bosqich yozuviga qarang), CI ham yo'q.
-3. Backend yo'q — auth, real progress persistensiyasi, XP tizimi hali frontend'ga ulanmagan (schema qoralamasi tayyor, §8 dagi 2026-08-17 yozuviga qarang, lekin haqiqiy Supabase loyihasi hali yaratilmagan va frontend hamon 100% hardcoded data bilan ishlaydi). AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang — bu xato allaqachon bir marta tuzatilgan).
+3. **Backend qisman ulangan (2026-09-06, §8 ga qarang):** Supabase auth (signup/login/logout) ishlaydi, lekin real progress persistensiyasi, XP tizimi, kurslar/leaderboard hamon frontend'ga ulanmagan — `coursesData` 100% hardcoded qolmoqda. Foydalanuvchi hali haqiqiy Supabase loyihasini yaratmagan/`.env.local`ni to'ldirmagan bo'lsa, `/login`dan boshqa hech qanday sahifa ochilmaydi (`ProtectedRoute` qamrab oladi) — bu ataylab shunday, chunki auth infratuzilmasi to'liq qamrov ("auth + barcha ma'lumotlar") so'ralgan holda qurilgan. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang — bu xato allaqachon bir marta tuzatilgan).
 
 ## 7. Konvensiyalar / qoidalar
 
@@ -140,8 +154,24 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Ko'p marta `npm install`/`uninstall` qilingandan keyin (masalan dependency versiyasini sinab ko'rishda) agar `npm run dev` oldindan ishlab turgan bo'lsa — "Invalid hook call" / "more than one copy of React" xatosi chiqishi mumkin, chunki Vite'ning dependency pre-bundle jarayoni HMR WebSocket orqali avtomatik to'liq-reload signalini yuborishi kerak, lekin ba'zi avtomatlashtirilgan/proxy'langan brauzer muhitlarida bu WebSocket ulanmay qolishi mumkin (oddiy brauzerda muammo bo'lmaydi). Shubha tug'ilsa `npm run build` + `npm run preview` (statik, HMR'siz) orqali tekshirish ancha ishonchli.
 - Bu loyihani Claude Code'ning Browser pane orqali test qilishda `document.hasFocus()` doim `false` va `document.visibilityState` doim `"hidden"` bo'ladi — ya'ni `:focus`/`:focus-within` CSS pseudo-klasslari va `requestAnimationFrame`ga tayanadigan animatsiyalar avtomatik tekshiruvda ishlamaydi, garchi kod to'g'ri bo'lsa ham (haqiqiy brauzerda muammo yo'q). Bunday holatlarda `getComputedStyle` + `document.activeElement` bilan emas, build'dagi CSS qoidalarini (`grep dist/assets/*.css`) va DOM/ARIA atributlarini tekshirib tasdiqlash kerak.
 - Kod yozishdan oldin/keyin `npm run lint` (ESLint) va `npm run format` (Prettier) ishga tushirish kerak — ikkalasi ham sozlangan (§8 dagi 5-bosqich yozuviga qarang). `npm run typecheck` (`tsc --noEmit`) alohida buyruq, `lint`ning bir qismi emas.
+- **Supabase klientini hech qachon `createClient(url ?? '', key ?? '')` bilan yaratmaslik** — bo'sh string bilan chaqirilsa `createClient` **sinxron throw** qiladi va butun ilova mount bo'lishdan oldin crash bo'ladi (§8 dagi 2026-09-06 yozuvida shu xato haqiqatan sodir bo'lgan va tuzatilgan). [src/lib/supabaseClient.ts](src/lib/supabaseClient.ts)dagi `isSupabaseConfigured` + placeholder URL naqshini davom ettirish kerak.
+- Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-06 — Supabase auth infratuzilmasi qo'shildi (signup/login/logout, protected route), hali frontend ma'lumotlari ulanmagan.** Foydalanuvchi bilan muhokamadan so'ng "to'liq (auth + barcha ma'lumotlar)" qamrovi tanlandi, lekin Supabase loyihasi/kalitlar hali foydalanuvchida yo'q edi — shuning uchun bu bosqich **faqat kodni tayyorlash**dan iborat (haqiqiy Supabase loyihasi va `.env.local` kalitlari foydalanuvchidan kutilmoqda, keyingi bosqich — schema'ni haqiqiy loyihaga qo'llash va `coursesData`ni real query'ga o'tkazish). Hammasi `npm run lint`, `npm run typecheck`, `npm run format:check`, `npm run build` bilan tekshirildi, qo'shimcha Browser pane orqali haqiqiy klik/navigatsiya bilan ham sinaldi:
+
+1. `@supabase/supabase-js@^2.115.0` o'rnatildi (0 zaiflik). `.env.example` (`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`) va [src/vite-env.d.ts](src/vite-env.d.ts) (`import.meta.env` turlari) qo'shildi.
+2. [src/lib/supabaseClient.ts](src/lib/supabaseClient.ts) — Supabase klienti. **Muhim topilma:** dastlabki versiyada kalitlar yo'qligida `createClient('', '')` chaqirilgan edi — bu `"supabaseUrl is required"` bilan **sinxron throw** qilib, butun React ilovasini mount bo'lishdan oldin crash qildirgan (Browser pane'da `document.getElementById('root').innerHTML === ''` bilan tasdiqlandi). Tuzatildi: kalitlar yo'q bo'lsa `https://placeholder.supabase.co` / `placeholder-anon-key` ishlatiladi (bu URL sintaktik to'g'ri, `createClient` throw qilmaydi) + `isSupabaseConfigured` flag eksport qilinadi. Natijada kalitlarsiz ham ilova ochiladi, faqat auth chaqiruvlari muvaffaqiyatsiz bo'ladi.
+3. `src/context/` uchta faylga bo'lingan (§7 ga ham yozildi) — `react-refresh/only-export-components` ogohlantirishini yo'qotish uchun: `authContext.ts` (`AuthContext` + `AuthContextValue` turi), `AuthContext.tsx` (`<AuthProvider>` — `supabase.auth.getSession()` + `onAuthStateChange` bilan session holatini kuzatadi), `useAuth.ts` (hook). `signIn`/`signUp`/`signOut` barchasi `try/catch` bilan o'ralgan — `isSupabaseConfigured=false` bo'lsa tarmoqqa chiqmasdan darhol tushunarli xato qaytaradi (`NOT_CONFIGURED_ERROR`), tarmoq xatosi bo'lsa ham `{ error: string | null }` shaklida qaytadi, hech qachon uncaught exception tashlamaydi.
+4. [src/pages/Login.tsx](src/pages/Login.tsx) — signin/signup formasi, mavjud dizayn tiliga mos (`glass-panel`, `bg-amaranth` tugma, `text-navy/60`). Xato `role="alert"`, muvaffaqiyat xabari `role="status"` bilan e'lon qilinadi (accessibility, §6/§8 4-bosqich konvensiyasiga mos).
+5. [src/components/ProtectedRoute.tsx](src/components/ProtectedRoute.tsx) — session yo'qligida `/login`ga redirect, `location.state.from` orqali kelgan joyini eslab qoladi. [src/App.tsx](src/App.tsx) qayta tuzildi: tashqi `<Routes>` `/login` (ochiq) va `/*` (`ProtectedRoute` ichida eski `AppShell`, avvalgi `App()` tanasi shu nom bilan ichki komponentga chiqarildi) ga bo'lingan.
+6. [src/components/Sidebar.tsx](src/components/Sidebar.tsx) va [src/components/TopNav.tsx](src/components/TopNav.tsx) dagi "Log Out" tugmalari (avval hech narsa qilmasdi) endi `useAuth().signOut()`ga ulangan.
+7. Browser pane orqali tasdiqlandi: (a) kalitlarsiz ilova crash bo'lmasdan `/login`ni ko'rsatadi; (b) `/` ga to'g'ridan-to'g'ri kirishga urinish `/login`ga redirect qiladi; (c) signin formasini to'ldirib submit qilinganda tarmoq xatosi emas, `"Supabase hali ulanmagan..."` alert (`role="alert"`) chiqadi; (d) signup rejimiga almashish "To'liq ism" maydonini qo'shadi.
+8. `npm run build` toza o'tadi, lekin endi 500kB ogohlantirishi bor (`@supabase/supabase-js` og'irligi bilan, 679KB/195KB gzip) — README'ning "Keyingi qadamlar"iga `manualChunks` bilan bo'lish yozib qo'yildi, hozircha funksional muammo emas.
+9. README.md'ga "Backend (Supabase)" bo'limi qo'shildi — loyiha yaratish, kalitlarni olish, migratsiyani qo'lda SQL Editor'da ishga tushirish bosqichlari.
+
+**Ataylab qilinmagan narsalar:** Supabase CLI orqali migratsiyani avtomatik qo'llash (`supabase db push`) — bu DB parolini yoki access token'ni talab qiladi, buning o'rniga foydalanuvchi SQL Editor'da qo'lda ishga tushiradi (xavfsizroq, hech qanday maxfiy narsa Claude'ga berilmaydi). `coursesData`/leaderboard/XP'ni real query'ga o'tkazish — bu keyingi bosqich, foydalanuvchi haqiqiy Supabase loyihasi va kalitlarni bergandan keyin boshlanadi.
 
 **2026-08-21 — Repozitoriy GitHub'ga yuklashga tayyorlandi (`git init` + infratuzilma).** Kod mantig'iga hech qanday o'zgarish kiritilmadi — faqat repo-darajasidagi fayllar. Hammasi `npm run lint`, `npm run typecheck`, `npm run format:check` va `npm run build` bilan tekshirildi (to'rttasi ham toza):
 
