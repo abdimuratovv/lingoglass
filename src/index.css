@@ -21,14 +21,18 @@ body {
 }
 
 .glass-panel {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  /* Oldingi 0.15/0.05 fon rasmining yuqori-kontrastli naqshini deyarli to'liq
+     o'tkazib yuborardi (matn o'qilishini qiyinlashtirib, ko'zga noqulaylik
+     berardi). Oq qatlam va blur oshirilib, "muzlangan shisha" ta'siri
+     kuchaytirildi -- fon hamon ko'rinadi, lekin xira/yumshoq holda. */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.38));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   box-shadow:
-    0 8px 32px 0 rgba(43, 45, 66, 0.05),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
-    inset 1px 0 0 0 rgba(255, 255, 255, 0.1);
+    0 8px 32px 0 rgba(43, 45, 66, 0.08),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.35),
+    inset 1px 0 0 0 rgba(255, 255, 255, 0.2);
 }
 
 .hide-scrollbar {
