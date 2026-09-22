@@ -181,7 +181,7 @@ left join last_week_ranked lwr on lwr.user_id = twr.user_id
 where us.show_on_leaderboard
 order by twr.rank;
 
-grant select on public.leaderboard_current_week to authenticated;
+-- Grant: §7 ga qarang (barcha Data API huquqlari bitta joyda boshqariladi).
 
 -- ============================================================
 -- 4. QUIZ
@@ -219,7 +219,7 @@ create view public.quiz_answer_options_public as
 select id, question_id, option_text, position
 from public.quiz_answer_options;
 
-grant select on public.quiz_answer_options_public to authenticated;
+-- Grant: §7 ga qarang (barcha Data API huquqlari bitta joyda boshqariladi).
 
 -- To'g'ri javobni serverda tekshiradigan yagona yo'l — client hech qachon
 -- to'g'ridan-to'g'ri xp_events'ga yozmaydi (aks holda o'ziga cheksiz XP bera oladi).
@@ -348,3 +348,86 @@ create policy "resources_admin_write" on public.resources for all using (public.
 
 create policy "idioms_select_all" on public.idioms for select using (true);
 create policy "idioms_admin_write" on public.idioms for all using (public.is_admin()) with check (public.is_admin());
+
+-- ============================================================
+-- 7. DATA API GRANTS (jadval darajasidagi huquqlar)
+-- ============================================================
+-- Ikki qatlamli himoya: GRANT "qaysi jadval/amal umuman ochiq"ligini, RLS esa
+-- "o'sha jadvalning qaysi qatorlari"ni belgilaydi. Bittasi yetarli emas —
+-- RLS tasodifan o'chib qolsa GRANT ushlab qoladi, GRANT keng bo'lsa RLS ushlab qoladi.
+--
+-- Bu blok Supabase loyihasidagi "Automatically expose new tables" sozlamasi
+-- YOQIQ bo'lsa ham, O'CHIQ bo'lsa ham bir xil yakuniy holat berishi uchun avval
+-- hamma narsani revoke qiladi, keyin faqat kerakligini qaytarib beradi.
+-- Shu blok mavjud bo'lgani uchun o'sha sozlamani O'CHIRIB qo'yish tavsiya etiladi:
+-- u faqat KELAJAKDA yaratiladigan jadvallarga ta'sir qiladi, va o'chirilgan bo'lsa
+-- yangi jadval avtomatik ochilib qolmaydi — huquqi shu yerga qo'lda yoziladi.
+--
+-- service_role ataylab tegilmaydi: server tomonidagi vazifalar (seed, admin skriptlar,
+-- kelajakdagi Edge Function'lar) uchun to'liq huquq saqlanib qolishi kerak.
+
+grant usage on schema public to anon, authenticated;
+
+revoke all on all tables in schema public from anon, authenticated;
+
+-- anon (login qilmagan mehmon) uchun ataylab hech narsa ochilmaydi — ilovadagi har bir
+-- sahifa ProtectedRoute ortida, ya'ni mehmon hech qanday so'rov yubormaydi.
+-- Kelajakda mehmonga ochiq landing/katalog qo'shilsa, courses/lessons/idioms uchun
+-- shu yerga `grant select ... to anon` qo'shish kifoya — RLS policy'lari (`using (true)`)
+-- buni allaqachon qo'llab-quvvatlaydi.
+
+-- profiles: ism/avatar leaderboard uchun hammaga ko'rinadi, yangilash faqat o'zini.
+grant select, update on public.profiles to authenticated;
+
+-- user_settings: faqat o'zi. INSERT yo'q — qator handle_new_user() trigger'i orqali yaratiladi.
+grant select, update on public.user_settings to authenticated;
+
+-- admin_users: ataylab hech qanday grant yo'q (policy ham yo'q — §6 ga qarang).
+-- is_admin() SECURITY DEFINER bo'lgani uchun client huquqiga muhtoj emas.
+
+-- courses / lessons: o'qish hammaga, yozishni RLS admin bilan cheklaydi
+-- (Admin UI client tomonda ishlagani uchun yozish huquqi grant darajasida ochiq bo'lishi kerak).
+grant select, insert, update, delete on public.courses to authenticated;
+grant select, insert, update, delete on public.lessons to authenticated;
+
+-- lesson_progress: foydalanuvchi faqat o'z qatorlarini boshqaradi.
+grant select, insert, update, delete on public.lesson_progress to authenticated;
+
+-- xp_events: faqat o'qish. INSERT ataylab berilmaydi — XP yozishning yagona yo'li
+-- submit_quiz_answer() kabi SECURITY DEFINER funksiyalar (§4 ga qarang).
+grant select on public.xp_events to authenticated;
+
+-- quizzes / quiz_questions: o'qish hammaga, yozish RLS orqali adminga.
+grant select, insert, update, delete on public.quizzes to authenticated;
+grant select, insert, update, delete on public.quiz_questions to authenticated;
+
+-- quiz_answer_options: DIQQAT — is_correct shu jadvalda turadi va uni yashiradigan
+-- yagona narsa "quiz_answer_options_admin_only" RLS policy'si. Admin UI client tomonda
+-- bo'lgani uchun grant'ni olib tashlab bo'lmaydi, shuning uchun bu jadvalda RLS
+-- hech qachon o'chirilmasligi kerak. Oddiy foydalanuvchi variantlarni
+-- quiz_answer_options_public view'idan o'qiydi (is_correct'siz).
+grant select, insert, update, delete on public.quiz_answer_options to authenticated;
+
+-- notifications: o'qish + read_at'ni belgilash. INSERT server/admin tomonda qoladi.
+grant select, update on public.notifications to authenticated;
+
+-- resources / idioms: o'qish hammaga, yozish RLS orqali adminga.
+grant select, insert, update, delete on public.resources to authenticated;
+grant select, insert, update, delete on public.idioms to authenticated;
+
+-- View'lar: ikkalasi ham definer huquqi bilan ishlaydi (§3, §4 dagi izohlarga qarang),
+-- shuning uchun faqat select — ular orqali yozish mumkin bo'lmasligi kerak.
+grant select on public.leaderboard_current_week to authenticated;
+grant select on public.quiz_answer_options_public to authenticated;
+
+-- Funksiyalar. Postgres yangi funksiyaga default'da PUBLIC uchun EXECUTE beradi, lekin
+-- bunga tayanmaslik kerak — aniq yozilgani xavfsizroq va o'z-o'zini hujjatlaydi.
+-- is_admin() alohida muhim: u policy ifodalari ichida chaqiriladi, policy esa invoker
+-- huquqi bilan baholanadi — EXECUTE bo'lmasa har bir admin-policy
+-- "permission denied for function is_admin" bilan yiqiladi.
+grant execute on function public.is_admin() to authenticated;
+grant execute on function public.get_course_stats(text) to authenticated;
+grant execute on function public.submit_quiz_answer(uuid, uuid) to authenticated;
+
+-- handle_new_user() ataylab ro'yxatda yo'q: u auth.users ustidagi trigger sifatida
+-- Supabase auth servisi tomonidan ishga tushadi, client uni hech qachon chaqirmaydi.

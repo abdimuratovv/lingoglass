@@ -1,0 +1,50 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# LingoGlass sof client-side SPA: server kodi yo'q, Supabase tashqi servis.
+# Shuning uchun "Web Service" emas, `runtime: static` (CDN'dan beriladi, uxlab qolmaydi).
+
+services:
+  - type: web
+    runtime: static
+    name: lingoglass
+    branch: main
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+
+    envVars:
+      # Vite `import.meta.env.VITE_*` ni BUILD paytida kod ichiga yozib qo'yadi —
+      # runtime'da o'qimaydi. Ya'ni bu qiymatlar birinchi build'dan OLDIN
+      # Render dashboard'ida to'ldirilishi shart, keyin o'zgartirilsa esa
+      # qayta deploy majburiy (aks holda eski qiymat bundle ichida qolib ketadi).
+      # `sync: false` = qiymat repoda emas, faqat dashboard'da so'raladi.
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      # .nvmrc ham bor, lekin bu yerda aniq yozilgani noaniqlikni yo'qotadi.
+      # package.json `engines` Node >=22.13.0 talab qiladi.
+      - key: NODE_VERSION
+        value: '22'
+
+    routes:
+      # SPA fallback. `BrowserRouter` ishlatilgani uchun bu MAJBURIY: usiz
+      # foydalanuvchi /courses ga to'g'ridan-to'g'ri kirsa yoki /leaderboard'da
+      # sahifani yangilasa, Render `dist/courses` faylini qidirib 404 qaytaradi.
+      # `rewrite` (redirect EMAS) — URL brauzerda o'zgarmasligi kerak.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    headers:
+      # Vite `dist/assets/` ichidagi fayl nomlariga kontent hash qo'shadi,
+      # shuning uchun ularni abadiy keshlash xavfsiz. index.html bunga kirmaydi
+      # (u har doim yangi tekshiriladi — Render'ning statik default'i shunday).
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

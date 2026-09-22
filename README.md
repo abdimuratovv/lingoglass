@@ -107,6 +107,20 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
 
 **Hozircha ulanmagan:** kurslar/progress/XP/leaderboard ma'lumoti hamon `src/data/courses.ts`dagi hardcoded holatda — faqat auth (signup/login/logout) real Supabase'ga ulangan. Schema'dagi qolgan jadvallar (`courses`, `lesson_progress`, `xp_events`, `quizzes`, ...) frontend'ga hali bog'lanmagan.
 
+## Deploy (Render)
+
+Loyiha sof client-side SPA (server kodi yo'q) — Render'da **Static Site** sifatida joylashtiriladi, "Web Service" emas. Repo ildizidagi [`render.yaml`](render.yaml) bularning barchasini tavsiflaydi (Render Blueprint).
+
+1. [dashboard.render.com](https://dashboard.render.com) → **New → Blueprint** → shu GitHub repo'ni tanlang. Render `render.yaml`ni o'qib, `lingoglass` nomli Static Site'ni taklif qiladi.
+2. So'ralganda **`VITE_SUPABASE_URL`** va **`VITE_SUPABASE_ANON_KEY`**ni kiriting ([Backend (Supabase)](#backend-supabase) bo'limidagi qiymatlar bilan bir xil). **Muhim:** Vite bu qiymatlarni build paytida bundle ichiga yozadi, runtime'da o'qimaydi — birinchi build'dan oldin to'ldirilishi shart, keyin o'zgartirilsa qayta deploy qilish kerak.
+3. Deploy tugagach, Supabase loyihasida **Authentication → URL Configuration** ga o'ting va **Site URL** hamda **Redirect URLs** ga Render bergan domenni (`https://lingoglass-xxxx.onrender.com` yoki custom domen) qo'shing — aks holda email tasdiqlash/parol tiklash havolalari `localhost:3000`ga ishora qiladi.
+
+`render.yaml` ichida ta'minlangan narsalar:
+
+- **SPA rewrite** (`/* → /index.html`) — `BrowserRouter` client-side routing ishlatgani uchun majburiy; bo'lmasa `/courses` kabi yo'lga to'g'ridan-to'g'ri kirish yoki sahifani yangilash 404 beradi.
+- **`dist/assets/*` uchun abadiy cache** — Vite fayl nomlariga kontent hash qo'shadi, shuning uchun xavfsiz.
+- Blueprint'siz qo'lda sozlasangiz: Build Command `npm ci && npm run build`, Publish Directory `dist`, va yuqoridagi rewrite qoidasini qo'lda qo'shing (Render dashboard'ining "Redirects/Rewrites" bo'limi).
+
 ## Keyingi qadamlar
 
 - [x] Supabase auth ulash (signup/login/logout, protected route)
