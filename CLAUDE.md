@@ -88,9 +88,10 @@ lingoglass/
 ├── public/
 │   └── background.webp        → fon rasmi, ~32KB (avvalgi backgroun.png'dan ~97% kichik, §8 ga qarang)
 └── supabase/
-    ├── seed.sql               → boshlang'ich kontent (4 kurs, 60 dars, 3 quiz, 1 idiom), idempotent — migratsiyadan KEYIN ishga tushiriladi (§8 dagi 2026-09-24 seed yozuvi)
+    ├── seed.sql               → boshlang'ich kontent (4 kurs, 60 dars, 3 quiz, 1 idiom), idempotent — migratsiyalardan KEYIN ishga tushiriladi (§8 dagi 2026-09-24 seed yozuvi)
     └── migrations/
-        └── 20260817000000_init_schema.sql → boshlang'ich backend schema qoralamasi (§8 dagi 2026-08-17 yozuviga qarang) — hali hech qanday Supabase loyihasiga qo'llanmagan, faqat PGlite'da sinalgan (§8 dagi 2026-09-24 yozuvi)
+        ├── 20260817000000_init_schema.sql → boshlang'ich backend schema (§8 dagi 2026-08-17 yozuvi) — PRODUCTION'GA QO'LLANGAN, tahrirlanmaydi
+        └── 20260924000000_fix_xp_dedup_and_function_grants.sql → XP takrorlanishi + anon funksiya huquqlari tuzatishi (§8 dagi 2026-09-24 "kechroq" yozuvi)
 ```
 
 ## 4. Arxitektura / navigatsiya
@@ -162,6 +163,14 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-24 (kechroq) — Init migratsiya production'ga allaqachon qo'llangan ekan; tuzatishlar alohida migratsiyaga ko'chirildi.** SQL Editor'da tuzatilgan init ishga tushirilganda `42P07: relation "profiles" already exists` chiqdi. Diagnostika: bazada init'ning **eski** (tuzatilmagan) nusxasi to'liq qo'llangan (`submit_quiz_answer` eski tanasi bilan) va `profiles`da **4 ta haqiqiy foydalanuvchi** bor — ya'ni avvalgi "migratsiya hali qo'llanmagan" degan ma'lumot noto'g'ri edi. Shu sabab:
+
+1. [20260817000000_init_schema.sql](supabase/migrations/20260817000000_init_schema.sql) **production'da qo'llangan holatiga qaytarildi** (commit `b3e5bc1`dagi nusxa; faqat sarlavha izohi "tahrirlamang" deb o'zgartirildi). Quyidagi "birinchi" 2026-09-24 yozuvidagi in-place tahrir shu bilan bekor bo'ldi.
+2. Ikkala tuzatish yangi [20260924000000_fix_xp_dedup_and_function_grants.sql](supabase/migrations/20260924000000_fix_xp_dedup_and_function_grants.sql)ga ko'chirildi, bitta `begin/commit` ichida: eski `source_type` CHECK'ni mazmuniga qarab topib almashtirish (nomi avtomatik bo'lgani uchun), `unique (user_id, source_type, source_id)`, yangi `submit_quiz_answer()`, **init §7 ning to'liq qayta qo'llanishi** (init'ning §7'siz eski nusxasi qo'llangan bo'lsa ham yakuniy holat bir xil) va funksiyalar uchun revoke/grant. Farqi: revoke `all functions` emas, **aniq ro'yxat** — public sxemada Supabase'ning o'z `rls_auto_enable()` funksiyasi (automatic RLS sozlamasi) bor, unga tegilmaydi.
+3. **Sinov (PGlite):** init'ning ikkala ehtimoliy qo'llangan nusxasi (`fe82f4f` — §7'siz, `b3e5bc1` — §7 bilan) + 4 ta user → tuzatish (2 marta) → seed zanjiri, har birida 20/20: userlar ma'lumoti o'zgarmaydi, XP takrorlanmaydi, anon rad etiladi, admin RLS, signup trigger'i, `rls_auto_enable`ga tegilmagani. Qo'shimcha: `xp_events`da eski `quiz_passed` qatori bo'lsa tuzatish xato beradi va **to'liq bekor bo'ladi** (funksiya, CHECK, huquqlar o'zgarmaydi) — ma'lumot jimgina o'zgartirilmaydi.
+4. **Production'ga qo'llandi (2026-09-24):** foydalanuvchi SQL Editor'da avval tuzatish migratsiyasini, keyin `seed.sql`ni ishga tushirdi (ikkalasi "Success"). Yakuniy o'qish-faqat tekshiruv so'rovi 17/17 `true` berdi: 4 kurs / 60 dars / 3 quiz / 1 savol / 3 variant / 1 idiom, har bir `auth.users` uchun profil bor, yangi `submit_quiz_answer`, unique cheklov, anon hech qanday funksiya/jadvalga kira olmaydi, `authenticated` `xp_events`ga yoza olmaydi, `admin_users` bo'sh emas. **Hozirgi production holati = init + tuzatish migratsiyasi + seed.**
+5. **Qoida (§7 ga ham tegishli):** qo'llangan migratsiya fayli hech qachon tahrirlanmaydi — har bir o'zgarish yangi `YYYYMMDDHHMMSS_*.sql` fayl. Bazaga nima qo'llanganini taxmin qilmasdan, avval SQL Editor'da diagnostika so'rovi bilan tekshirish kerak.
 
 **2026-09-24 — `supabase/seed.sql` yaratildi (boshlang'ich kontent).** Frontend kodi o'zgarmadi. Tarkibi: 4 kurs + 60 dars (`src/data/courses.ts`dan **skript orqali generatsiya qilingan**, qo'lda ko'chirilmagan; `position` = dars `id`si, `"12 min"` → `duration_minutes = 12`), AdminQuizBuilder'dagi 3 quiz (faqat birinchisining UI'da haqiqatan yozilgan 1 savoli + 3 varianti, "have been" to'g'ri), Dashboard'dagi 1 idiom ("Piece of cake"). Quiz/savol/variant/idiom UUID'lari qat'iy (`a…`/`b…`/`c…`/`d…0001`) — bu jadvallarda tabiiy unique kalit yo'q, qat'iy ID bo'lmasa seed idempotent bo'lmasdi.
 

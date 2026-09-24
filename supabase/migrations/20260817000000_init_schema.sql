@@ -1,6 +1,8 @@
 -- LingoGlass — boshlang'ich schema (auth + courses + progress + xp + leaderboard + quiz + admin)
 -- Qo'llash: `supabase db push` (Supabase CLI) yoki loyiha SQL Editor'ida qo'lda ishga tushiriladi.
--- Hali hech qanday Supabase loyihasiga qarshi sinalmagan — birinchi marta qo'llashda xato chiqsa shu faylni tuzatib qayta yozamiz.
+-- DIQQAT: bu fayl production bazaga allaqachon qo'llangan (haqiqiy foydalanuvchilar bor) — uni
+-- TAHRIRLAMANG. Har qanday o'zgarish yangi migratsiya fayli sifatida qo'shiladi (masalan
+-- 20260924000000_fix_xp_dedup_and_function_grants.sql shu faylning ikki xatosini tuzatadi).
 
 -- ============================================================
 -- 1. PROFILES / SETTINGS
@@ -126,16 +128,11 @@ $$;
 create table public.xp_events (
   id bigint generated always as identity primary key,
   user_id uuid not null references public.profiles (id) on delete cascade,
-  source_type text not null check (source_type in ('lesson_completed', 'quiz_answer_correct', 'streak_bonus')),
+  source_type text not null check (source_type in ('lesson_completed', 'quiz_passed', 'streak_bonus')),
   source_id uuid,
   xp_amount int not null,
   title text not null,
-  created_at timestamptz not null default now(),
-  -- Bitta manba (dars / savol) uchun XP faqat BIR MARTA beriladi. Usiz foydalanuvchi
-  -- submit_quiz_answer()'ni bitta to'g'ri javob bilan qayta-qayta chaqirib cheksiz XP yig'ardi.
-  -- source_id NULL bo'lgan qatorlar (masalan streak_bonus) bu cheklovga tushmaydi (NULL'lar
-  -- o'zaro teng hisoblanmaydi) — bunday XP yozadigan funksiya takrorlanishni o'zi nazorat qilishi kerak.
-  unique (user_id, source_type, source_id)
+  created_at timestamptz not null default now()
 );
 
 create index xp_events_user_created_idx on public.xp_events (user_id, created_at desc);
@@ -228,8 +225,6 @@ from public.quiz_answer_options;
 
 -- To'g'ri javobni serverda tekshiradigan yagona yo'l — client hech qachon
 -- to'g'ridan-to'g'ri xp_events'ga yozmaydi (aks holda o'ziga cheksiz XP bera oladi).
--- XP har bir savol uchun faqat birinchi to'g'ri javobda beriladi (xp_events'dagi unique
--- cheklov + on conflict do nothing — parallel so'rovlarda ham ikki marta yozilmaydi).
 create or replace function public.submit_quiz_answer(p_question_id uuid, p_option_id uuid)
 returns boolean
 language plpgsql
@@ -238,24 +233,20 @@ set search_path = public
 as $$
 declare
   v_is_correct boolean;
+  v_quiz_id uuid;
+  v_lesson_id uuid;
 begin
-  -- Mehmon (auth.uid() = NULL) uchun aniq rad etish. Usiz INSERT faqat to'g'ri javobda
-  -- not-null xatosi bilan yiqilardi, noto'g'ri javobda esa false qaytarardi — shu farq
-  -- orqali login qilmasdan ham to'g'ri variantni aniqlab olish mumkin bo'lardi.
-  -- (EXECUTE huquqi ham §7 da anon'dan olingan — bu ikkinchi qatlam.)
-  if auth.uid() is null then
-    raise exception 'not authenticated' using errcode = '42501';
-  end if;
-
-  select qao.is_correct
-    into v_is_correct
+  select qao.is_correct, qq.quiz_id
+    into v_is_correct, v_quiz_id
   from public.quiz_answer_options qao
+  join public.quiz_questions qq on qq.id = qao.question_id
   where qao.id = p_option_id and qao.question_id = p_question_id;
 
   if v_is_correct then
+    select lesson_id into v_lesson_id from public.quizzes where id = v_quiz_id;
+
     insert into public.xp_events (user_id, source_type, source_id, xp_amount, title)
-    values (auth.uid(), 'quiz_answer_correct', p_question_id, 10, 'Correct quiz answer')
-    on conflict (user_id, source_type, source_id) do nothing;
+    values (auth.uid(), 'quiz_passed', v_quiz_id, 10, 'Quiz completed');
   end if;
 
   return coalesce(v_is_correct, false);
@@ -431,15 +422,8 @@ grant select, insert, update, delete on public.idioms to authenticated;
 grant select on public.leaderboard_current_week to authenticated;
 grant select on public.quiz_answer_options_public to authenticated;
 
--- Funksiyalar. Yuqoridagi `revoke all on all tables` funksiyalarga TA'SIR QILMAYDI:
--- Postgres yangi funksiyaga default'da PUBLIC uchun EXECUTE beradi, Supabase esa public
--- sxemasida qo'shimcha ravishda anon/authenticated'ga ham to'g'ridan-to'g'ri beradi.
--- Shuning uchun jadvallar kabi bu yerda ham avval hammasi olinadi, keyin faqat
--- kerakligi authenticated'ga qaytariladi (anon hech qanday RPC chaqira olmaydi).
--- Kelajakda yangi funksiya qo'shilsa, u ham shu yerga aniq grant bilan yozilishi kerak —
--- bu revoke faqat shu migratsiya paytida mavjud bo'lgan funksiyalarni qamraydi.
-revoke execute on all functions in schema public from public, anon, authenticated;
-
+-- Funksiyalar. Postgres yangi funksiyaga default'da PUBLIC uchun EXECUTE beradi, lekin
+-- bunga tayanmaslik kerak — aniq yozilgani xavfsizroq va o'z-o'zini hujjatlaydi.
 -- is_admin() alohida muhim: u policy ifodalari ichida chaqiriladi, policy esa invoker
 -- huquqi bilan baholanadi — EXECUTE bo'lmasa har bir admin-policy
 -- "permission denied for function is_admin" bilan yiqiladi.
@@ -449,5 +433,3 @@ grant execute on function public.submit_quiz_answer(uuid, uuid) to authenticated
 
 -- handle_new_user() ataylab ro'yxatda yo'q: u auth.users ustidagi trigger sifatida
 -- Supabase auth servisi tomonidan ishga tushadi, client uni hech qachon chaqirmaydi.
--- (Trigger ishga tushganda EXECUTE huquqi tekshirilmaydi — faqat CREATE TRIGGER paytida,
--- u esa migratsiya egasi nomidan bajariladi, shuning uchun yuqoridagi revoke uni buzmaydi.)

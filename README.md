@@ -100,7 +100,7 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
    VITE_SUPABASE_URL=https://xxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=eyJ...
    ```
-4. [`supabase/migrations/20260817000000_init_schema.sql`](supabase/migrations/20260817000000_init_schema.sql) ni loyihangizning SQL Editor'ida ishga tushiring (jadvallar, RLS policy'lar, `get_course_stats()`/`submit_quiz_answer()` funksiyalari).
+4. [`supabase/migrations/`](supabase/migrations/) dagi fayllarni **nom tartibida** (sanasi bo'yicha) loyihangizning SQL Editor'ida birma-bir ishga tushiring — avval `20260817000000_init_schema.sql`, keyin `20260924000000_fix_xp_dedup_and_function_grants.sql`. Qo'llangan migratsiya fayli hech qachon tahrirlanmaydi, har bir o'zgarish yangi fayl bo'ladi.
 5. So'ng [`supabase/seed.sql`](supabase/seed.sql) ni ham SQL Editor'da ishga tushiring — boshlang'ich kontent (4 kurs, 60 dars, quizlar, idiom). Qayta ishga tushirish xavfsiz: hech narsa takrorlanmaydi.
 6. `npm run dev` — endi `/login` sahifasida haqiqiy signup/login ishlaydi.
 7. Ro'yxatdan o'tgandan keyin o'zingizni admin qiling (SQL Editor'da, `id`ni **Authentication → Users** dan oling): `insert into public.admin_users values ('<user-id>');`
