@@ -103,14 +103,14 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
    VITE_SUPABASE_URL=https://xxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=eyJ...
    ```
-4. [`supabase/migrations/`](supabase/migrations/) dagi fayllarni **nom tartibida** (sanasi bo'yicha) loyihangizning SQL Editor'ida birma-bir ishga tushiring — avval `20260817000000_init_schema.sql`, keyin `20260924000000_fix_xp_dedup_and_function_grants.sql`. Qo'llangan migratsiya fayli hech qachon tahrirlanmaydi, har bir o'zgarish yangi fayl bo'ladi.
+4. [`supabase/migrations/`](supabase/migrations/) dagi fayllarni **nom tartibida** (sanasi bo'yicha) loyihangizning SQL Editor'ida birma-bir ishga tushiring — avval `20260817000000_init_schema.sql`, keyin `20260924000000_fix_xp_dedup_and_function_grants.sql`, keyin `20260924120000_complete_lesson.sql`. Qo'llangan migratsiya fayli hech qachon tahrirlanmaydi, har bir o'zgarish yangi fayl bo'ladi.
 5. So'ng [`supabase/seed.sql`](supabase/seed.sql) ni ham SQL Editor'da ishga tushiring — boshlang'ich kontent (4 kurs, 60 dars, quizlar, idiom). Qayta ishga tushirish xavfsiz: hech narsa takrorlanmaydi.
 6. `npm run dev` — endi `/login` sahifasida haqiqiy signup/login ishlaydi.
 7. Ro'yxatdan o'tgandan keyin o'zingizni admin qiling (SQL Editor'da, `id`ni **Authentication → Users** dan oling): `insert into public.admin_users values ('<user-id>');`
 
 `.env.local` **hech qachon commit qilinmaydi** (`.gitignore`da). `anon` kalit RLS orqali himoyalangan, klient tomonda ishlatilishi uchun mo'ljallangan — lekin `service_role` kalitini hech qachon frontend kodiga qo'ymang.
 
-**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi). **Hali ulanmagan:** `xp_events`/leaderboard, `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari; darsni tugatish (progress yozish) funksiyasi ham hali yo'q.
+**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi), darsni tugatish (`complete_lesson()` — progress + XP). **Hali ulanmagan:** `xp_events`/leaderboard, `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari.
 
 ## Deploy (Render)
 
@@ -130,7 +130,7 @@ Loyiha sof client-side SPA (server kodi yo'q) — Render'da **Static Site** sifa
 
 - [x] Supabase auth ulash (signup/login/logout, protected route)
 - [x] Kurslar va profilni hardcoded'dan Supabase'ga o'tkazish
-- [ ] Leaderboard/XP/streak/bildirishnomalar/Settings'ni Supabase'ga ulash; darsni tugatish (`complete_lesson`) funksiyasi
+- [ ] Leaderboard/XP/streak/bildirishnomalar/Settings'ni Supabase'ga ulash
 - [ ] Test infratuzilmasi (hozircha test yo'q)
 - [ ] Vizual accessibility audit (rang kontrasti, `prefers-reduced-motion`)
 - [ ] Placeholder rasmlarni (`picsum.photos`) real assetlarga almashtirish

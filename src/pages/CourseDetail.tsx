@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Clock, CheckCircle, PlayCircle, Play, FileText, Volume2, Lock } from 'lucide-react';
-import { getCourseStats } from '../data/courses';
+import { ArrowLeft, BookOpen, Clock, CheckCircle, Play, FileText, Volume2, Lock, Loader2 } from 'lucide-react';
+import { completeLesson, getCourseStats, type Lesson } from '../data/courses';
 import { useCourses } from '../data/useCourses';
 import { StatusPanel } from '../components/ui/StatusPanel';
 
@@ -37,12 +38,34 @@ function lessonTypeBg(type: string) {
 export function CourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const { courses, loading, error, reload } = useCourses(courseId);
+  const { courses, loading, error, refreshing, reload } = useCourses(courseId);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  const handleComplete = async (lesson: Lesson) => {
+    setCompletingId(lesson.id);
+    setNotice(null);
+    try {
+      const xp = await completeLesson(lesson.id);
+      setNotice({
+        kind: 'success',
+        text: xp > 0 ? `"${lesson.title}" completed — +${xp} XP` : `"${lesson.title}" is already completed.`,
+      });
+      reload();
+    } catch (err) {
+      setNotice({
+        kind: 'error',
+        text: `Couldn't complete the lesson: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    } finally {
+      setCompletingId(null);
+    }
+  };
 
   if (loading || error) {
     return (
       <div className="flex-1 flex flex-col pb-20 md:pb-0 max-w-4xl mx-auto w-full">
-        <StatusPanel loading={loading} error={error} onRetry={reload} />
+        <StatusPanel loading={loading || refreshing} error={error} onRetry={reload} />
       </div>
     );
   }
@@ -55,6 +78,9 @@ export function CourseDetail() {
   const { totalLessons, completedLessons, progress } = getCourseStats(course);
   const isCompleted = progress === 100;
   const nextLessonIndex = course.lessonList.findIndex((l) => !l.completed);
+  const nextLesson = nextLessonIndex === -1 ? null : course.lessonList[nextLessonIndex];
+  // Bitta so'rov tugamaguncha va yangilangan progress kelmaguncha tugmalar bloklanadi.
+  const busy = completingId !== null || refreshing;
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-20 md:pb-0 max-w-4xl mx-auto w-full">
@@ -117,9 +143,18 @@ export function CourseDetail() {
             </div>
 
             {/* Action button */}
-            {!isCompleted && nextLessonIndex !== -1 && (
-              <button className="bg-amaranth hover:bg-amaranth/90 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-amaranth/20 transition-all flex items-center gap-2 shrink-0">
-                <PlayCircle size={18} /> Continue Lesson {nextLessonIndex + 1}
+            {!isCompleted && nextLesson && (
+              <button
+                onClick={() => void handleComplete(nextLesson)}
+                disabled={busy}
+                className="bg-amaranth hover:bg-amaranth/90 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-amaranth/20 transition-all flex items-center gap-2 shrink-0"
+              >
+                {completingId === nextLesson.id ? (
+                  <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <CheckCircle size={18} />
+                )}
+                Complete Lesson {nextLesson.position}
               </button>
             )}
             {isCompleted && (
@@ -128,6 +163,15 @@ export function CourseDetail() {
               </span>
             )}
           </div>
+
+          {notice && (
+            <p
+              role={notice.kind === 'error' ? 'alert' : 'status'}
+              className={`mt-4 text-sm font-medium ${notice.kind === 'error' ? 'text-red-500' : 'text-emerald-600'}`}
+            >
+              {notice.text}
+            </p>
+          )}
         </div>
       </div>
 
@@ -186,8 +230,18 @@ export function CourseDetail() {
                 {/* Action */}
                 <div className="shrink-0 ml-2">
                   {isNext && (
-                    <button className="bg-amaranth text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm hover:bg-amaranth/90 transition-colors flex items-center gap-1.5">
-                      <Play size={12} /> Start
+                    <button
+                      onClick={() => void handleComplete(lesson)}
+                      disabled={busy}
+                      aria-label={`Mark "${lesson.title}" as completed`}
+                      className="bg-amaranth text-white text-xs font-medium px-4 py-2 rounded-lg shadow-sm hover:bg-amaranth/90 disabled:opacity-60 transition-colors flex items-center gap-1.5"
+                    >
+                      {completingId === lesson.id ? (
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle size={12} />
+                      )}
+                      Complete
                     </button>
                   )}
                   {lesson.completed && <span className="text-xs text-emerald-500 font-medium">Done</span>}

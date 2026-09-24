@@ -96,7 +96,8 @@ lingoglass/
     ├── seed.sql               → boshlang'ich kontent (4 kurs, 60 dars, 3 quiz, 1 idiom), idempotent — migratsiyalardan KEYIN ishga tushiriladi (§8 dagi 2026-09-24 seed yozuvi)
     └── migrations/
         ├── 20260817000000_init_schema.sql → boshlang'ich backend schema (§8 dagi 2026-08-17 yozuvi) — PRODUCTION'GA QO'LLANGAN, tahrirlanmaydi
-        └── 20260924000000_fix_xp_dedup_and_function_grants.sql → XP takrorlanishi + anon funksiya huquqlari tuzatishi (§8 dagi 2026-09-24 "kechroq" yozuvi)
+        ├── 20260924000000_fix_xp_dedup_and_function_grants.sql → XP takrorlanishi + anon funksiya huquqlari tuzatishi (§8 dagi 2026-09-24 "kechroq" yozuvi)
+        └── 20260924120000_complete_lesson.sql → complete_lesson() RPC + lesson_progress'ga to'g'ridan-to'g'ri yozish yopildi (§8 dagi 2026-09-24 complete_lesson yozuvi)
 ```
 
 ## 4. Arxitektura / navigatsiya
@@ -150,8 +151,8 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 2. Frontend uchun test yo'q (ESLint + Prettier + GitHub Actions CI bor, §8 dagi 5-bosqich va 2026-08-21 yozuvlariga qarang). Migratsiya faqat bir martalik PGlite sinovidan o'tgan (§8 dagi 2026-09-24 yozuvi), repoda doimiy SQL/RLS test yo'q.
 3. **Frontend admin himoyasi yo'q:** `/admin` va Sidebar/MobileNav'dagi "Admin" havolasi har qanday login qilgan userga ko'rinadi. Yozishni RLS (`is_admin()`) to'xtatadi, lekin UI'da `is_admin()` bo'yicha yashirish/`AdminRoute` kerak.
 4. **Auth UI qisman:** parolni tiklash oqimi yo'q; email'ni o'zgartirish yo'q (profil panelida faqat ko'rsatiladi); avatar yuklash (kamera tugmasi) ishlamaydi — Storage bucket kerak; Settings'dagi "Change Password" va toggle'lar hech narsa saqlamaydi.
-5. `lesson_completed` XP'ni yozadigan server funksiyasi hali yo'q (faqat `submit_quiz_answer()` XP beradi). `submit_quiz_answer()` urinishlar sonini cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta, lekin baribir).
-6. **Backend qisman ulangan:** auth, profil va kurslar/progress ulangan (§8 dagi 2026-09-24 frontend yozuvi). Leaderboard, XP/streak, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Idiom of the Day, Settings va Admin hamon hardcoded. Darsni tugatish (`lesson_progress` + XP) hali yo'q — "Start"/"Continue" tugmalari hech narsa qilmaydi, shuning uchun hamma kurs 0% ko'rsatadi. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
+5. Darsni tugatish o'z-o'zini belgilash: darslarda kontent yo'q, `complete_lesson()` "tugatdi"ni tekshira olmaydi — XP takrorlanmaydi va ketma-ketlik majburiy, lekin darslarni tez bosib chiqish mumkin. `submit_quiz_answer()` urinishlar sonini cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta).
+6. **Backend qisman ulangan:** auth, profil, kurslar/progress va darsni tugatish (`complete_lesson`) ulangan (§8 dagi 2026-09-24 yozuvlari). Leaderboard, XP/streak ko'rsatish, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Idiom of the Day, Settings va Admin hamon hardcoded. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
 
 ## 7. Konvensiyalar / qoidalar
 
@@ -168,6 +169,12 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-24 — Darsni tugatish: `complete_lesson()` + CourseDetail tugmalari.** `lint`/`typecheck`/`format:check` toza; SQL PGlite'da production zanjiri (init → fix → seed → yangi migratsiya ×2) bilan 19/19 sinaldi.
+
+1. **[20260924120000_complete_lesson.sql](supabase/migrations/20260924120000_complete_lesson.sql):** `complete_lesson(p_lesson_id) returns int` (SECURITY DEFINER) — `auth.uid()` bo'sh bo'lsa rad; dars topilmasa `P0002`; shu kursdagi oldingi darslar tugallanmagan bo'lsa `P0001 previous lessons are not completed` (UI'dagi "Locked" qoidasi endi serverda majburiy); `lesson_progress`ga upsert; `xp_events`ga `lesson_completed` (XP = `duration_minutes`, sarlavha `Completed: <dars nomi>`) `on conflict do nothing`; berilgan XP'ni qaytaradi (qayta chaqirilsa 0). **`lesson_progress`dan INSERT/UPDATE/DELETE huquqi olindi** — faqat `select`; progress va XP doim shu funksiya orqali birga yoziladi. Funksiya huquqi 20260924000000 naqshida (revoke public/anon/authenticated → grant authenticated).
+2. **Frontend:** `completeLesson()` ([courses.ts](src/data/courses.ts)) RPC'ni chaqiradi. [CourseDetail](src/pages/CourseDetail.tsx)da "Start" → **Complete**, "Continue Lesson N" → **Complete Lesson N**; natija `role="status"` (+XP) yoki `role="alert"` (xato) bilan; so'rov va qayta yuklash tugaguncha tugmalar bloklanadi. `useCourses` endi `refreshing` qaytaradi — `reload()` paytida eski ma'lumot ekranda qoladi, sahifa yuklanish paneliga "miltillab" o'tmaydi.
+3. **Holat:** migratsiya foydalanuvchiga SQL Editor uchun berildi, lekin production'ga qo'llangani **hali tasdiqlanmagan**. Qo'llanmaguncha "Complete" tugmasi `Could not find the function public.complete_lesson` kabi xato ko'rsatadi (sahifaning qolgan qismi ishlaydi). Haqiqiy akkauntda tugatish Browser pane'da sinalmadi (haqiqiy progress/XP yozadi — ruxsat kerak).
 
 **2026-09-24 — Frontend: profil va kurslar Supabase'ga ulandi.** Hammasi `lint`/`typecheck`/`format:check`/`build` bilan va Browser pane'da haqiqiy akkaunt bilan (foydalanuvchi o'zi login qildi) tekshirildi:
 

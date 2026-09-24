@@ -40,6 +40,16 @@ export function getCourseStats(course: Course): CourseStats {
   return { totalLessons, completedLessons, progress };
 }
 
+/**
+ * Darsni joriy user uchun tugallangan deb belgilaydi (complete_lesson() RPC). Berilgan XP'ni
+ * qaytaradi — dars avval tugatilgan bo'lsa 0. Oldingi darslar tugallanmagan bo'lsa server rad etadi.
+ */
+export async function completeLesson(lessonId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('complete_lesson', { p_lesson_id: lessonId });
+  if (error) throw new Error(error.message);
+  return typeof data === 'number' ? data : 0;
+}
+
 interface LessonRow {
   id: string;
   position: number;
