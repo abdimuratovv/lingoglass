@@ -5,20 +5,20 @@
 
 Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn konsepsiyasi — _Light Theme Liquid Glassmorphism_: shaffof/blur'langan panellar va `layoutId` orqali "suyuq" animatsiyali navigatsiya indikatori.
 
-> **Loyiha holati:** UI maketi + Supabase auth infratuzilmasi (signup/login/logout, protected route). Backend haqiqiy loyihaga hali ulanmagan — `.env.local` to'ldirilmaguncha faqat `/login` sahifasi ochiladi, real autentifikatsiya ishlamaydi. Kurslar/leaderboard ma'lumoti hamon kodga hardcoded ([`src/data/courses.ts`](src/data/courses.ts)). Boshlang'ich Supabase schema qoralamasi [`supabase/migrations/`](supabase/migrations/) da bor, lekin hech qanday loyihaga qo'llanmagan.
+> **Loyiha holati:** UI + Supabase backend (Frankfurt). Auth (signup/login/logout, protected route), joriy userning profili va kurslar/darslar/progress bazadan keladi. Leaderboard, XP/streak, bildirishnomalar, Settings va Admin panellari hamon hardcoded. Schema [`supabase/migrations/`](supabase/migrations/) da, boshlang'ich kontent [`supabase/seed.sql`](supabase/seed.sql) da.
 
 ## Texnologiyalar
 
-| Qatlam     | Yechim                                                                  |
-| ---------- | ----------------------------------------------------------------------- |
-| UI         | React 19 + TypeScript 5.8 (`strict`)                                    |
-| Build      | Vite 6                                                                  |
-| Routing    | `react-router-dom` 7 (client-side SPA)                                  |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom glass CSS                |
-| Animatsiya | `motion` (Framer Motion) — `layoutId` shared-layout                     |
-| Ikonkalar  | `lucide-react`                                                          |
-| Backend    | Supabase (`@supabase/supabase-js`) — auth ulangan, DB hali qo'llanmagan |
-| Sifat      | ESLint 10 (flat config) + Prettier                                      |
+| Qatlam     | Yechim                                                     |
+| ---------- | ---------------------------------------------------------- |
+| UI         | React 19 + TypeScript 5.8 (`strict`)                       |
+| Build      | Vite 6                                                     |
+| Routing    | `react-router-dom` 7 (client-side SPA)                     |
+| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom glass CSS   |
+| Animatsiya | `motion` (Framer Motion) — `layoutId` shared-layout        |
+| Ikonkalar  | `lucide-react`                                             |
+| Backend    | Supabase (`@supabase/supabase-js`) — auth, profil, kurslar |
+| Sifat      | ESLint 10 (flat config) + Prettier                         |
 
 ## Ishga tushirish
 
@@ -66,7 +66,7 @@ Himoyalangan marshrutlarga sessiyasiz kirilsa `/login`ga redirect qilinadi ([`Pr
 
 ```
 src/
-├── main.tsx                 # BrowserRouter + AuthProvider + createRoot entry point
+├── main.tsx                 # BrowserRouter + AuthProvider + ProfileProvider + createRoot
 ├── App.tsx                  # /login + himoyalangan AppShell (Sidebar+TopNav+MobileNav) <Routes>
 ├── index.css                # Tailwind @theme tokenlar + glassmorphism CSS sinflari
 ├── vite-env.d.ts             # import.meta.env uchun TS turlari (VITE_SUPABASE_*)
@@ -74,9 +74,12 @@ src/
 ├── context/
 │   ├── authContext.ts         # AuthContext + AuthContextValue turi (faqat non-komponent)
 │   ├── AuthContext.tsx         # <AuthProvider> — session holati, signIn/signUp/signOut
-│   └── useAuth.ts              # useAuth() hook
-├── data/courses.ts           # Course/Lesson type, coursesData, getCourseStats()
-├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle
+│   ├── useAuth.ts              # useAuth() hook
+│   └── profileContext.ts / ProfileContext.tsx / useProfile.ts  # joriy userning profili
+├── data/
+│   ├── courses.ts              # Course/Lesson turlari, getCourseStats(), fetchCourses() (Supabase)
+│   └── useCourses.ts           # useCourses() hook — { courses, loading, error, reload }
+├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle, ui/StatusPanel
 └── pages/                     # Login, Dashboard, MyCourses, CourseDetail, Leaderboard,
                                # Settings, admin/*
 ```
@@ -107,7 +110,7 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
 
 `.env.local` **hech qachon commit qilinmaydi** (`.gitignore`da). `anon` kalit RLS orqali himoyalangan, klient tomonda ishlatilishi uchun mo'ljallangan — lekin `service_role` kalitini hech qachon frontend kodiga qo'ymang.
 
-**Hozircha ulanmagan:** kurslar/progress/XP/leaderboard ma'lumoti hamon `src/data/courses.ts`dagi hardcoded holatda — faqat auth (signup/login/logout) real Supabase'ga ulangan. Schema'dagi qolgan jadvallar (`courses`, `lesson_progress`, `xp_events`, `quizzes`, ...) frontend'ga hali bog'lanmagan.
+**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi). **Hali ulanmagan:** `xp_events`/leaderboard, `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari; darsni tugatish (progress yozish) funksiyasi ham hali yo'q.
 
 ## Deploy (Render)
 
@@ -126,7 +129,8 @@ Loyiha sof client-side SPA (server kodi yo'q) — Render'da **Static Site** sifa
 ## Keyingi qadamlar
 
 - [x] Supabase auth ulash (signup/login/logout, protected route)
-- [ ] `coursesData`/leaderboard/XP'ni hardcoded'dan real Supabase query'ga o'tkazish
+- [x] Kurslar va profilni hardcoded'dan Supabase'ga o'tkazish
+- [ ] Leaderboard/XP/streak/bildirishnomalar/Settings'ni Supabase'ga ulash; darsni tugatish (`complete_lesson`) funksiyasi
 - [ ] Test infratuzilmasi (hozircha test yo'q)
 - [ ] Vizual accessibility audit (rang kontrasti, `prefers-reduced-motion`)
 - [ ] Placeholder rasmlarni (`picsum.photos`) real assetlarga almashtirish

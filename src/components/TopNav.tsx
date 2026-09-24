@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Bell, LogOut, Camera, X } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { useProfile } from '../context/useProfile';
+import { avatarUrl, displayName } from '../context/profileContext';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -47,7 +49,13 @@ function useDropdownA11y(
 }
 
 export function TopNav() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const { profile, updateProfile } = useProfile();
+  const name = displayName(profile, user?.email);
+  const [formName, setFormName] = useState('');
+  const [formBio, setFormBio] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -64,6 +72,25 @@ export function TopNav() {
 
   const closeNotifications = useCallback(() => setShowNotifications(false), []);
   const closeProfile = useCallback(() => setShowProfile(false), []);
+
+  // Forma har ochilganda bazadagi joriy qiymatlardan boshlanadi (bekor qilingan tahrir qolib ketmaydi).
+  const toggleProfile = () => {
+    if (!showProfile) {
+      setFormName(profile?.full_name ?? '');
+      setFormBio(profile?.bio ?? '');
+      setSaveError(null);
+    }
+    setShowProfile(!showProfile);
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    setSaveError(null);
+    const { error } = await updateProfile({ full_name: formName.trim(), bio: formBio.trim() });
+    setSaving(false);
+    if (error) setSaveError(error);
+    else setShowProfile(false);
+  };
 
   useDropdownA11y(showNotifications, closeNotifications, notifPanelRef, notifButtonRef);
   useDropdownA11y(showProfile, closeProfile, profilePanelRef, profileButtonRef);
@@ -273,7 +300,7 @@ export function TopNav() {
               }}
             >
               <div className="flex flex-col justify-center text-right whitespace-nowrap pr-3 w-full">
-                <span className="text-sm font-semibold text-charcoal leading-tight">Alex Johnson</span>
+                <span className="text-sm font-semibold text-charcoal leading-tight truncate">{name}</span>
               </div>
             </div>
 
@@ -287,12 +314,12 @@ export function TopNav() {
                 className="w-10 h-10 rounded-full bg-gradient-to-tr from-amaranth to-orange-400 p-[2px] shrink-0 cursor-pointer ml-1 hover:shadow-lg hover:shadow-amaranth/20 transition-shadow"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowProfile(!showProfile);
+                  toggleProfile();
                   setShowNotifications(false);
                 }}
               >
                 <img
-                  src="https://picsum.photos/seed/alex/100/100"
+                  src={avatarUrl(profile?.avatar_seed, 100)}
                   alt="Profile"
                   className="w-full h-full rounded-full border border-white/50 object-cover"
                   referrerPolicy="no-referrer"
@@ -324,7 +351,7 @@ export function TopNav() {
                       <div className="relative">
                         <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-amaranth to-orange-400">
                           <img
-                            src="https://picsum.photos/seed/alex/200/200"
+                            src={avatarUrl(profile?.avatar_seed, 200)}
                             alt="Profile"
                             className="w-full h-full rounded-full border-2 border-white object-cover"
                             referrerPolicy="no-referrer"
@@ -338,59 +365,74 @@ export function TopNav() {
                         </button>
                       </div>
                       <div>
-                        <h4 className="font-bold text-charcoal">Alex Johnson</h4>
-                        <p className="text-navy/60 text-xs mt-0.5">alex.johnson@example.com</p>
-                        <span className="inline-block mt-1.5 text-[10px] font-semibold text-amaranth bg-amaranth/10 px-2 py-0.5 rounded-full">
-                          B1 Intermediate
-                        </span>
+                        <h4 className="font-bold text-charcoal">{name}</h4>
+                        <p className="text-navy/60 text-xs mt-0.5">{user?.email}</p>
+                        {profile?.cefr_level && (
+                          <span className="inline-block mt-1.5 text-[10px] font-semibold text-amaranth bg-amaranth/10 px-2 py-0.5 rounded-full">
+                            {profile.cefr_level}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {}
                   <div className="p-5 space-y-3.5 max-h-[350px] overflow-y-auto">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider">
-                          First Name
-                        </label>
-                        <input
-                          type="text"
-                          defaultValue="Alex"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amaranth/30 focus:border-amaranth/30 transition-all text-charcoal"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider">
-                          Last Name
-                        </label>
-                        <input
-                          type="text"
-                          defaultValue="Johnson"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amaranth/30 focus:border-amaranth/30 transition-all text-charcoal"
-                        />
-                      </div>
-                    </div>
-
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider">
-                        Email Address
+                      <label
+                        htmlFor="profile-full-name"
+                        className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider"
+                      >
+                        Full Name
                       </label>
                       <input
-                        type="email"
-                        defaultValue="alex.johnson@example.com"
+                        id="profile-full-name"
+                        type="text"
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amaranth/30 focus:border-amaranth/30 transition-all text-charcoal"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider">Bio</label>
+                      <label
+                        htmlFor="profile-email"
+                        className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider"
+                      >
+                        Email Address
+                      </label>
+                      {/* Email'ni o'zgartirish tasdiqlash oqimini talab qiladi (auth.updateUser) — hozircha faqat ko'rsatiladi. */}
+                      <input
+                        id="profile-email"
+                        type="email"
+                        value={user?.email ?? ''}
+                        readOnly
+                        aria-readonly="true"
+                        className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2 text-sm text-navy/60 cursor-not-allowed focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label
+                        htmlFor="profile-bio"
+                        className="text-[11px] font-semibold text-navy/60 uppercase tracking-wider"
+                      >
+                        Bio
+                      </label>
                       <textarea
+                        id="profile-bio"
                         rows={2}
-                        defaultValue="Learning English to travel the world and connect with new people."
+                        value={formBio}
+                        onChange={(e) => setFormBio(e.target.value)}
                         className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amaranth/30 focus:border-amaranth/30 transition-all resize-none text-charcoal"
                       />
                     </div>
+
+                    {saveError && (
+                      <p role="alert" className="text-xs text-red-500">
+                        {saveError}
+                      </p>
+                    )}
 
                     <div className="flex gap-2 pt-1">
                       <button
@@ -399,8 +441,12 @@ export function TopNav() {
                       >
                         Cancel
                       </button>
-                      <button className="flex-1 px-4 py-2 bg-amaranth hover:bg-amaranth/90 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-amaranth/20">
-                        Save Changes
+                      <button
+                        onClick={() => void saveProfile()}
+                        disabled={saving}
+                        className="flex-1 px-4 py-2 bg-amaranth hover:bg-amaranth/90 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-amaranth/20"
+                      >
+                        {saving ? 'Saving…' : 'Save Changes'}
                       </button>
                     </div>
                   </div>

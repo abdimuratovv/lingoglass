@@ -12,8 +12,15 @@ import {
   Clock,
   TrendingUp,
 } from 'lucide-react';
+import { useAuth } from '../context/useAuth';
+import { useProfile } from '../context/useProfile';
+import { displayName } from '../context/profileContext';
 
 export function Dashboard() {
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const firstName = displayName(profile, user?.email).split(/\s+/)[0];
+
   return (
     <div className="flex-1 flex flex-col xl:flex-row gap-6 pb-20 md:pb-0">
       {/* Left Column */}
@@ -24,7 +31,7 @@ export function Dashboard() {
           <div className="absolute right-20 -bottom-10 w-32 h-32 bg-blue-400/10 rounded-full blur-2xl"></div>
 
           <div className="relative z-10">
-            <h2 className="text-3xl font-bold mb-2">Welcome back, Alex! 👋</h2>
+            <h2 className="text-3xl font-bold mb-2">Welcome back{firstName ? `, ${firstName}` : ''}! 👋</h2>
             <p className="text-navy/70 mb-6 max-w-md">
               You've learned 24 new words this week. Keep up the great work and reach your daily goal!
             </p>

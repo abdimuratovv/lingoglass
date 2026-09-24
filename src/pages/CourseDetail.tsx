@@ -1,6 +1,8 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Clock, CheckCircle, PlayCircle, Play, FileText, Volume2, Lock } from 'lucide-react';
-import { coursesData, getCourseStats } from '../data/courses';
+import { getCourseStats } from '../data/courses';
+import { useCourses } from '../data/useCourses';
+import { StatusPanel } from '../components/ui/StatusPanel';
 
 function lessonTypeIcon(type: string) {
   switch (type) {
@@ -35,8 +37,17 @@ function lessonTypeBg(type: string) {
 export function CourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const course = coursesData.find((c) => c.id === courseId);
+  const { courses, loading, error, reload } = useCourses(courseId);
 
+  if (loading || error) {
+    return (
+      <div className="flex-1 flex flex-col pb-20 md:pb-0 max-w-4xl mx-auto w-full">
+        <StatusPanel loading={loading} error={error} onRetry={reload} />
+      </div>
+    );
+  }
+
+  const course = courses?.[0];
   if (!course) {
     return <Navigate to="/courses" replace />;
   }
@@ -147,7 +158,7 @@ export function CourseDetail() {
                         : 'bg-navy/5 text-charcoal/40'
                   }`}
                 >
-                  {lesson.completed ? <CheckCircle size={16} /> : lesson.id}
+                  {lesson.completed ? <CheckCircle size={16} /> : lesson.position}
                 </div>
 
                 {/* Type icon */}
@@ -167,7 +178,7 @@ export function CourseDetail() {
                   <div className="flex items-center gap-3 mt-0.5">
                     <span className="text-xs text-charcoal/50 capitalize">{lesson.type}</span>
                     <span className="text-xs text-charcoal/40 flex items-center gap-1">
-                      <Clock size={10} /> {lesson.duration}
+                      <Clock size={10} /> {lesson.durationMinutes} min
                     </span>
                   </div>
                 </div>

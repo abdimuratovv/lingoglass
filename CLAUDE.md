@@ -6,22 +6,22 @@ Bu fayl **LingoGlass** loyihasi bo'yicha Claude uchun doimiy gid (Obsidian/ikkin
 
 **LingoGlass** — ingliz tili o'rganish platformasi uchun **frontend dashboard prototipi**. Dizayn konsepsiyasi: _Light Theme Liquid Glassmorphism_ — shaffof/blur'langan panellar + `layoutId` orqali "suyuq" navigatsiya indikatori.
 
-**Hozirgi holat: UI maketi + Supabase auth infratuzilmasi ulangan (2026-09-06, §8 ga qarang).** Signup/login/logout va protected route ishlaydi (haqiqiy Supabase loyihasiga `.env.local` orqali ulanganda). Kurslar/leaderboard/XP ma'lumoti hamon **hardcoded** — faqat auth real backend'ga bog'langan, qolgan schema (`courses`, `lesson_progress`, `xp_events`, `quizzes`, ...) hali frontend'ga ulanmagan. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
+**Hozirgi holat: UI maketi + Supabase auth + profil va kurslar bazaga ulangan (2026-09-24, §8 ga qarang).** Signup/login/logout, protected route, joriy userning profili (TopNav/Dashboard, profilni tahrirlash) va kurslar/darslar/progress (MyCourses/CourseDetail) Supabase'dan keladi. Leaderboard, XP, streak, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Settings va Admin panellari hamon **hardcoded**. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
 
 Git repozitoriy — **ha**. Remote: <https://github.com/abdimuratovv/lingoglass> (`origin`, `main` branch). 2026-08-21 da `git init` qilinib, bitta boshlang'ich commit bilan push qilindi — §8 dagi 2026-08-21 yozuviga qarang.
 
 ## 2. Texnologiyalar
 
-| Qatlam     | Yechim                                                      | Versiya                                       |
-| ---------- | ----------------------------------------------------------- | --------------------------------------------- |
-| UI         | React + TypeScript                                          | React 19.2.8, TS ~5.8                         |
-| Build      | Vite                                                        | 6.x, port 3000 (dev) / 4173 (preview)         |
-| Routing    | `react-router-dom`                                          | 7.18.2 — pastdagi eslatmaga qarang            |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS          | —                                             |
-| Animatsiya | `motion` (Framer Motion)                                    | `LayoutGroup`, `AnimatePresence`, `layoutId`  |
-| Ikonkalar  | `lucide-react`                                              | —                                             |
-| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas)        | —                                             |
-| Backend    | Supabase (`@supabase/supabase-js`) — **faqat auth** ulangan | ^2.115.0 — §8 dagi 2026-09-06 yozuviga qarang |
+| Qatlam     | Yechim                                                       | Versiya                                               |
+| ---------- | ------------------------------------------------------------ | ----------------------------------------------------- |
+| UI         | React + TypeScript                                           | React 19.2.8, TS ~5.8                                 |
+| Build      | Vite                                                         | 6.x, port 3000 (dev) / 4173 (preview)                 |
+| Routing    | `react-router-dom`                                           | 7.18.2 — pastdagi eslatmaga qarang                    |
+| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS           | —                                                     |
+| Animatsiya | `motion` (Framer Motion)                                     | `LayoutGroup`, `AnimatePresence`, `layoutId`          |
+| Ikonkalar  | `lucide-react`                                               | —                                                     |
+| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas)         | —                                                     |
+| Backend    | Supabase (`@supabase/supabase-js`) — auth + profil + kurslar | ^2.115.0 — §8 dagi 2026-09-06 va 2026-09-24 yozuvlari |
 
 Buyruqlar ([package.json](package.json)):
 
@@ -54,7 +54,7 @@ lingoglass/
 ├── .github/workflows/ci.yml  → GitHub Actions: npm ci → lint → typecheck → format:check → build (Node 22.x)
 ├── .claude/launch.json       → preview_start konfiguratsiyalari: lingoglass-dev (npm run dev, 3000), lingoglass-preview (npm run preview, 4173)
 ├── src/
-│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + createRoot entry point
+│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + ProfileProvider + createRoot entry point
 │   ├── vite-env.d.ts          → import.meta.env uchun TS turlari (VITE_SUPABASE_URL/ANON_KEY)
 │   ├── index.css             → Tailwind @theme tokenlar + glassmorphism CSS sinflari + hide-scrollbar/pb-safe
 │   ├── App.tsx                → /login (ochiq) + /* ProtectedRoute ichida AppShell (Sidebar+TopNav+MobileNav+<Routes>)
@@ -63,16 +63,21 @@ lingoglass/
 │   ├── context/
 │   │   ├── authContext.ts     → AuthContext + AuthContextValue turi (faqat non-komponent — react-refresh lint qoidasi uchun ajratilgan)
 │   │   ├── AuthContext.tsx    → <AuthProvider> — session holati, signIn/signUp/signOut (tarmoq xatolarini try/catch bilan tutadi)
-│   │   └── useAuth.ts         → useAuth() hook
+│   │   ├── useAuth.ts         → useAuth() hook
+│   │   ├── profileContext.ts  → ProfileContext + Profile turi + avatarUrl()/displayName() yordamchilari
+│   │   ├── ProfileContext.tsx → <ProfileProvider> — joriy userning profiles qatori + updateProfile(full_name/bio)
+│   │   └── useProfile.ts      → useProfile() hook
 │   ├── data/
-│   │   └── courses.ts         → Course/Lesson type, coursesData, getCourseStats() — progress% shu yerdan hisoblanadi
+│   │   ├── courses.ts         → Course/Lesson turlari, getCourseStats(), fetchCourses(userId, courseId?) — Supabase'dan kurs+dars+progress
+│   │   └── useCourses.ts      → useCourses(courseId?) hook — { courses, loading, error, reload }
 │   ├── components/
 │   │   ├── TopNav.tsx          → ~333 qator: qidiruv/bildirishnoma/profil paneli + Log Out endi signOut()ga ulangan
 │   │   ├── Sidebar.tsx          → desktop sidebar, useLocation() orqali active holat + Log Out signOut()ga ulangan
 │   │   ├── MobileNav.tsx        → mobil pastki nav, useLocation() orqali active holat
 │   │   ├── ProtectedRoute.tsx   → session yo'q bo'lsa /login'ga redirect (kelgan joyini location.state.from'da saqlaydi)
 │   │   └── ui/
-│   │       └── Toggle.tsx        → Settings'dagi takrorlangan switch markup shu yerga chiqarilgan
+│   │       ├── Toggle.tsx        → Settings'dagi takrorlangan switch markup shu yerga chiqarilgan
+│   │       └── StatusPanel.tsx   → yuklanish / xato (+ Try again) / bo'sh holat uchun glass panel
 │   └── pages/
 │       ├── Login.tsx          → email/parol signin+signup formasi, glass-panel dizayniga mos
 │       ├── Dashboard.tsx
@@ -98,16 +103,16 @@ lingoglass/
 
 Router **bor** — `react-router-dom` (`BrowserRouter` + `AuthProvider`, [src/main.tsx](src/main.tsx) da `<App />`ni o'raydi). [src/App.tsx](src/App.tsx) endi ikki qavatli: tashqi `<Routes>` `/login`ni ochiq qoldiradi, qolgan hammasi (`/*`) `<ProtectedRoute>` ichidagi `AppShell`ga tushadi, ichki marshrutlar o'sha yerda e'lon qilingan (§8 dagi 2026-09-06 yozuviga qarang):
 
-| Yo'l                 | Komponent                                                                                  | Himoyalangan? |
-| -------------------- | ------------------------------------------------------------------------------------------ | :-----------: |
-| `/login`             | `Login` — signin/signup formasi, `useAuth()` orqali                                        |     yo'q      |
-| `/`                  | `Dashboard`                                                                                |      ha       |
-| `/courses`           | `MyCourses`                                                                                |      ha       |
-| `/courses/:courseId` | `CourseDetail` — `courseId` `coursesData`da topilmasa `<Navigate to="/courses" replace />` |      ha       |
-| `/leaderboard`       | `Leaderboard`                                                                              |      ha       |
-| `/settings`          | `Settings`                                                                                 |      ha       |
-| `/admin`             | `AdminPage` (ichida `content`/`quizzes`/`users` tab'lari `useState` bilan)                 |      ha       |
-| `*` (noma'lum yo'l)  | `<Navigate to="/" replace />`                                                              |      ha       |
+| Yo'l                 | Komponent                                                                   | Himoyalangan? |
+| -------------------- | --------------------------------------------------------------------------- | :-----------: |
+| `/login`             | `Login` — signin/signup formasi, `useAuth()` orqali                         |     yo'q      |
+| `/`                  | `Dashboard`                                                                 |      ha       |
+| `/courses`           | `MyCourses`                                                                 |      ha       |
+| `/courses/:courseId` | `CourseDetail` — kurs bazada topilmasa `<Navigate to="/courses" replace />` |      ha       |
+| `/leaderboard`       | `Leaderboard`                                                               |      ha       |
+| `/settings`          | `Settings`                                                                  |      ha       |
+| `/admin`             | `AdminPage` (ichida `content`/`quizzes`/`users` tab'lari `useState` bilan)  |      ha       |
+| `*` (noma'lum yo'l)  | `<Navigate to="/" replace />`                                               |      ha       |
 
 `ProtectedRoute` session yo'qligida `<Navigate to="/login" replace state={{ from: location.pathname }} />` qiladi; `Login` sahifasi kirgandan keyin shu `from`ga qaytaradi (aks holda `/`ga).
 
@@ -144,9 +149,9 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 1. Accessibility strukturaviy/semantik jihatdan yaxshi holatda (§8 dagi 4-bosqich yozuviga qarang — icon-only tugmalar, progress-bar'lar, tab-almashtiruvchilar, rang+ikonka orqali uzatiladigan ma'lumot hammasi ko'rib chiqilgan), lekin **vizual** audit (rang kontrasti, `prefers-reduced-motion`, ekran o'lchamlarida real screen-reader/klaviatura sinovi) hali qilinmagan — bu sessiyada Browser pane haqiqiy fokus/compositing holatiga ega bo'lmagani uchun (`document.hasFocus()` doim `false`) vizual/fokus holatlarini avtomatik tekshirib bo'lmadi, faqat build'dagi CSS qoidalari va DOM/ARIA atributlari orqali tasdiqlandi.
 2. Frontend uchun test yo'q (ESLint + Prettier + GitHub Actions CI bor, §8 dagi 5-bosqich va 2026-08-21 yozuvlariga qarang). Migratsiya faqat bir martalik PGlite sinovidan o'tgan (§8 dagi 2026-09-24 yozuvi), repoda doimiy SQL/RLS test yo'q.
 3. **Frontend admin himoyasi yo'q:** `/admin` va Sidebar/MobileNav'dagi "Admin" havolasi har qanday login qilgan userga ko'rinadi. Yozishni RLS (`is_admin()`) to'xtatadi, lekin UI'da `is_admin()` bo'yicha yashirish/`AdminRoute` kerak.
-4. **Auth UI'ga ulanmagan:** TopNav/Dashboard kim kirsa ham "Alex Johnson"/"Welcome back, Alex!" ko'rsatadi; parolni tiklash oqimi yo'q; Settings'dagi "Change Password" va toggle'lar hech narsa saqlamaydi.
+4. **Auth UI qisman:** parolni tiklash oqimi yo'q; email'ni o'zgartirish yo'q (profil panelida faqat ko'rsatiladi); avatar yuklash (kamera tugmasi) ishlamaydi — Storage bucket kerak; Settings'dagi "Change Password" va toggle'lar hech narsa saqlamaydi.
 5. `lesson_completed` XP'ni yozadigan server funksiyasi hali yo'q (faqat `submit_quiz_answer()` XP beradi). `submit_quiz_answer()` urinishlar sonini cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta, lekin baribir).
-6. **Backend qisman ulangan (2026-09-06, §8 ga qarang):** Supabase auth (signup/login/logout) ishlaydi, lekin real progress persistensiyasi, XP tizimi, kurslar/leaderboard hamon frontend'ga ulanmagan — `coursesData` 100% hardcoded qolmoqda. Foydalanuvchi hali haqiqiy Supabase loyihasini yaratmagan/`.env.local`ni to'ldirmagan bo'lsa, `/login`dan boshqa hech qanday sahifa ochilmaydi (`ProtectedRoute` qamrab oladi) — bu ataylab shunday, chunki auth infratuzilmasi to'liq qamrov ("auth + barcha ma'lumotlar") so'ralgan holda qurilgan. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang — bu xato allaqachon bir marta tuzatilgan).
+6. **Backend qisman ulangan:** auth, profil va kurslar/progress ulangan (§8 dagi 2026-09-24 frontend yozuvi). Leaderboard, XP/streak, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Idiom of the Day, Settings va Admin hamon hardcoded. Darsni tugatish (`lesson_progress` + XP) hali yo'q — "Start"/"Continue" tugmalari hech narsa qilmaydi, shuning uchun hamma kurs 0% ko'rsatadi. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
 
 ## 7. Konvensiyalar / qoidalar
 
@@ -163,6 +168,13 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-24 — Frontend: profil va kurslar Supabase'ga ulandi.** Hammasi `lint`/`typecheck`/`format:check`/`build` bilan va Browser pane'da haqiqiy akkaunt bilan (foydalanuvchi o'zi login qildi) tekshirildi:
+
+1. **Profil:** `ProfileProvider` (§7 dagi uch faylli context naqshi) joriy userning `profiles` qatorini o'qiydi. TopNav'da ism, email (`user.email`), avatar (`avatar_seed` bo'yicha picsum), CEFR belgisi (faqat `cefr_level` to'ldirilgan bo'lsa); Dashboard'da "Welcome back, {ism}!" (`full_name` bo'sh bo'lsa email'ning @ gacha qismi). Profil paneli: "First/Last Name" → bitta **Full Name** (schema'da faqat `full_name` bor, bo'lib saqlash noaniq bo'lardi), email **faqat o'qish** (o'zgartirish `auth.updateUser` + tasdiqlash oqimi talab qiladi), "Save Changes" `profiles`ga `full_name`/`bio`ni yozadi (RLS: faqat o'zi), xato `role="alert"` bilan. Forma har ochilganda bazadagi qiymatdan boshlanadi.
+2. **Kurslar:** `coursesData` o'chirildi (2026-09-24 seed yozuvidagi qoida bajarildi — kontentning yagona manbai endi baza). `fetchCourses()` ikki parallel so'rov: `courses` + ichki `lessons` (embedded select, `position` bo'yicha) va joriy userning `lesson_progress`i; `completed` client'da birlashtiriladi, `getCourseStats()` o'zgarmadi. `Lesson.id` endi uuid, raqam uchun `position`, davomiylik `durationMinutes`. Kurslar **`id` bo'yicha** tartiblanadi (bazada tartib ustuni yo'q) — Business English, Grammar, Idioms, TOEFL.
+3. **Hook'lardagi naqsh (react-hooks v7 `set-state-in-effect` qoidasi uchun):** `loading` alohida state emas — natija so'rov kaliti (`userId|courseId|reloadCount`) bilan saqlanadi va `loading = natija kaliti ≠ joriy kalit`. Effect ichida sinxron setState yo'q, eskirgan javob `cancelled` bayrog'i bilan tashlanadi. Yangi data hook'lar shu naqshda yozilsin (`useCourses.ts`, `ProfileContext.tsx`).
+4. **Tasdiqlandi (Browser pane):** Dashboard/TopNav'da haqiqiy ism; `/courses`da 4 kurs (24/12/18/6 dars, 0%); `/courses/toefl-prep`da 6 dars, 1-dars "Start", qolganlari "Locked"; `/courses/does-not-exist` → `/courses`; profil panelida haqiqiy ism/email, email readOnly; barcha `/rest/v1/` so'rovlari 200, konsolda xato yo'q. Dev'da har sahifada so'rovlar 2 martadan — `StrictMode` effektni ikki marta ishga tushiradi, production'da bitta. "Save Changes" haqiqiy bazaga yozgani uchun avtomatik sinalmadi.
 
 **2026-09-24 (kechroq) — Init migratsiya production'ga allaqachon qo'llangan ekan; tuzatishlar alohida migratsiyaga ko'chirildi.** SQL Editor'da tuzatilgan init ishga tushirilganda `42P07: relation "profiles" already exists` chiqdi. Diagnostika: bazada init'ning **eski** (tuzatilmagan) nusxasi to'liq qo'llangan (`submit_quiz_answer` eski tanasi bilan) va `profiles`da **4 ta haqiqiy foydalanuvchi** bor — ya'ni avvalgi "migratsiya hali qo'llanmagan" degan ma'lumot noto'g'ri edi. Shu sabab:
 

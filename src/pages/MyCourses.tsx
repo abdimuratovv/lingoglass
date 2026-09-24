@@ -1,9 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Clock, CheckCircle, PlayCircle } from 'lucide-react';
-import { coursesData, getCourseStats, type Course } from '../data/courses';
+import { getCourseStats, type Course } from '../data/courses';
+import { useCourses } from '../data/useCourses';
+import { StatusPanel } from '../components/ui/StatusPanel';
 
 export function MyCourses() {
   const navigate = useNavigate();
+  const { courses, loading, error, reload } = useCourses();
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-20 md:pb-0">
@@ -12,11 +15,15 @@ export function MyCourses() {
         <button className="text-sm font-medium text-amaranth hover:text-amaranth/80 transition-colors">View All</button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {coursesData.map((course) => (
-          <CourseCard key={course.id} course={course} onContinue={() => navigate(`/courses/${course.id}`)} />
-        ))}
-      </div>
+      {!courses || courses.length === 0 ? (
+        <StatusPanel loading={loading} error={error} onRetry={reload} message="No courses available yet." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {courses.map((course) => (
+            <CourseCard key={course.id} course={course} onContinue={() => navigate(`/courses/${course.id}`)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
