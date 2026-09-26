@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Bell, LogOut, Camera, X } from 'lucide-react';
+import { Search, Bell, LogOut, Camera, X, Flame } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useProfile } from '../context/useProfile';
+import { useXpStats } from '../context/useXpStats';
 import { avatarUrl, displayName } from '../context/profileContext';
+
+/** Yig'ilgan panel: qidiruv ikonkasi + qo'ng'iroq + avatar; streak belgisi bo'lsa unga qo'shiladi. */
+const COLLAPSED_WIDTH = 140;
+const STREAK_CHIP_WIDTH = 48;
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -52,6 +57,7 @@ export function TopNav() {
   const { user, signOut } = useAuth();
   const { profile, updateProfile } = useProfile();
   const name = displayName(profile, user?.email);
+  const { stats } = useXpStats();
   const [formName, setFormName] = useState('');
   const [formBio, setFormBio] = useState('');
   const [saving, setSaving] = useState(false);
@@ -136,6 +142,15 @@ export function TopNav() {
   };
 
   const isOpen = isHovered || isFocused || (isMobile && isMobileOpen);
+  // Mobilda ochilganda joy qidiruv maydoniga qoldiriladi (ism + XP baribir ko'rinadi).
+  const showStreak = stats !== null && !(isMobile && isOpen);
+  const streakLabel = !stats
+    ? ''
+    : stats.streakDays === 0
+      ? 'No active streak — earn XP today to start one'
+      : stats.activeToday
+        ? `${stats.streakDays}-day streak`
+        : `${stats.streakDays}-day streak — earn XP today to keep it`;
 
   return (
     <div className="fixed top-4 left-0 right-0 z-50 flex justify-center pointer-events-none px-4">
@@ -145,7 +160,7 @@ export function TopNav() {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{
-          width: isOpen ? (isMobile ? '100%' : '480px') : '140px',
+          width: isOpen ? (isMobile ? '100%' : '480px') : `${COLLAPSED_WIDTH + (showStreak ? STREAK_CHIP_WIDTH : 0)}px`,
           maxWidth: '100%',
           transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
@@ -291,6 +306,31 @@ export function TopNav() {
               )}
             </div>
 
+            {/* Streak belgisi (get_my_xp_stats) — yig'ilgan holatda ham ko'rinadi */}
+            {stats && (
+              <div
+                className="flex items-center justify-center overflow-hidden shrink-0"
+                title={streakLabel}
+                style={{
+                  width: showStreak ? `${STREAK_CHIP_WIDTH}px` : '0px',
+                  opacity: showStreak ? 1 : 0,
+                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
+                }}
+              >
+                <div
+                  className={`flex items-center gap-0.5 h-8 px-2 rounded-full text-xs font-bold ${stats.activeToday ? 'bg-orange-500/10 text-orange-600' : 'bg-navy/5 text-navy/50'}`}
+                >
+                  <Flame
+                    aria-hidden="true"
+                    size={14}
+                    className={stats.activeToday ? 'fill-orange-400 text-orange-500' : undefined}
+                  />
+                  <span aria-hidden="true">{stats.streakDays}</span>
+                  <span className="sr-only">{streakLabel}</span>
+                </div>
+              </div>
+            )}
+
             <div
               className="flex items-center overflow-hidden shrink-0"
               style={{
@@ -299,8 +339,13 @@ export function TopNav() {
                 transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease',
               }}
             >
-              <div className="flex flex-col justify-center text-right whitespace-nowrap pr-3 w-full">
+              <div className="flex flex-col justify-center text-right whitespace-nowrap pr-3 w-full min-w-0">
                 <span className="text-sm font-semibold text-charcoal leading-tight truncate">{name}</span>
+                {stats && (
+                  <span className="text-[11px] font-medium text-navy/60 leading-tight">
+                    {stats.totalXp.toLocaleString('en-US')} XP
+                  </span>
+                )}
               </div>
             </div>
 

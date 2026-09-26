@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Clock, CheckCircle, Play, FileText, Volume2, Lock, Loader2 } from 'lucide-react';
 import { completeLesson, getCourseStats, type Lesson } from '../data/courses';
 import { useCourses } from '../data/useCourses';
+import { useXpStats } from '../context/useXpStats';
 import { StatusPanel } from '../components/ui/StatusPanel';
 
 function lessonTypeIcon(type: string) {
@@ -39,6 +40,7 @@ export function CourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
   const { courses, loading, error, refreshing, reload } = useCourses(courseId);
+  const { reload: reloadXpStats } = useXpStats();
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
 
@@ -52,6 +54,8 @@ export function CourseDetail() {
         text: xp > 0 ? `"${lesson.title}" completed — +${xp} XP` : `"${lesson.title}" is already completed.`,
       });
       reload();
+      // TopNav'dagi umumiy XP / streak ham yangilanadi.
+      if (xp > 0) reloadXpStats();
     } catch (err) {
       setNotice({
         kind: 'error',

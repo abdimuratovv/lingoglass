@@ -6,22 +6,22 @@ Bu fayl **LingoGlass** loyihasi bo'yicha Claude uchun doimiy gid (Obsidian/ikkin
 
 **LingoGlass** — ingliz tili o'rganish platformasi uchun **frontend dashboard prototipi**. Dizayn konsepsiyasi: _Light Theme Liquid Glassmorphism_ — shaffof/blur'langan panellar + `layoutId` orqali "suyuq" navigatsiya indikatori.
 
-**Hozirgi holat: UI maketi + Supabase auth + profil va kurslar bazaga ulangan (2026-09-24, §8 ga qarang).** Signup/login/logout, protected route, joriy userning profili (TopNav/Dashboard, profilni tahrirlash) va kurslar/darslar/progress (MyCourses/CourseDetail) Supabase'dan keladi. Leaderboard, XP, streak, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Settings va Admin panellari hamon **hardcoded**. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
+**Hozirgi holat: UI maketi + Supabase auth + profil, kurslar, XP va leaderboard bazaga ulangan (2026-09-26, §8 ga qarang).** Signup/login/logout, protected route, joriy userning profili (TopNav/Dashboard, profilni tahrirlash), kurslar/darslar/progress (MyCourses/CourseDetail), haftalik Leaderboard, TopNav'dagi streak + umumiy XP va Dashboard'dagi Recent Activity Supabase'dan keladi. Learning Path, Core Skills, welcome banner'dagi "24 new words", bildirishnomalar, Idiom of the Day, Settings va Admin panellari hamon **hardcoded**. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
 
 Git repozitoriy — **ha**. Remote: <https://github.com/abdimuratovv/lingoglass> (`origin`, `main` branch). 2026-08-21 da `git init` qilinib, bitta boshlang'ich commit bilan push qilindi — §8 dagi 2026-08-21 yozuviga qarang.
 
 ## 2. Texnologiyalar
 
-| Qatlam     | Yechim                                                       | Versiya                                               |
-| ---------- | ------------------------------------------------------------ | ----------------------------------------------------- |
-| UI         | React + TypeScript                                           | React 19.2.8, TS ~5.8                                 |
-| Build      | Vite                                                         | 6.x, port 3000 (dev) / 4173 (preview)                 |
-| Routing    | `react-router-dom`                                           | 7.18.2 — pastdagi eslatmaga qarang                    |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS           | —                                                     |
-| Animatsiya | `motion` (Framer Motion)                                     | `LayoutGroup`, `AnimatePresence`, `layoutId`          |
-| Ikonkalar  | `lucide-react`                                               | —                                                     |
-| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas)         | —                                                     |
-| Backend    | Supabase (`@supabase/supabase-js`) — auth + profil + kurslar | ^2.115.0 — §8 dagi 2026-09-06 va 2026-09-24 yozuvlari |
+| Qatlam     | Yechim                                                            | Versiya                                                           |
+| ---------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| UI         | React + TypeScript                                                | React 19.2.8, TS ~5.8                                             |
+| Build      | Vite                                                              | 6.x, port 3000 (dev) / 4173 (preview)                             |
+| Routing    | `react-router-dom`                                                | 7.18.2 — pastdagi eslatmaga qarang                                |
+| Styling    | Tailwind CSS v4 (`@tailwindcss/vite`) + custom CSS                | —                                                                 |
+| Animatsiya | `motion` (Framer Motion)                                          | `LayoutGroup`, `AnimatePresence`, `layoutId`                      |
+| Ikonkalar  | `lucide-react`                                                    | —                                                                 |
+| Rasmlar    | tashqi `picsum.photos` (placeholder, hali real emas)              | —                                                                 |
+| Backend    | Supabase (`@supabase/supabase-js`) — auth + profil + kurslar + XP | ^2.115.0 — §8 dagi 2026-09-06, 2026-09-24 va 2026-09-26 yozuvlari |
 
 Buyruqlar ([package.json](package.json)):
 
@@ -54,22 +54,30 @@ lingoglass/
 ├── .github/workflows/ci.yml  → GitHub Actions: npm ci → lint → typecheck → format:check → build (Node 22.x)
 ├── .claude/launch.json       → preview_start konfiguratsiyalari: lingoglass-dev (npm run dev, 3000), lingoglass-preview (npm run preview, 4173)
 ├── src/
-│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + ProfileProvider + createRoot entry point
+│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + ProfileProvider + XpStatsProvider + createRoot entry point
 │   ├── vite-env.d.ts          → import.meta.env uchun TS turlari (VITE_SUPABASE_URL/ANON_KEY)
 │   ├── index.css             → Tailwind @theme tokenlar + glassmorphism CSS sinflari + hide-scrollbar/pb-safe
 │   ├── App.tsx                → /login (ochiq) + /* ProtectedRoute ichida AppShell (Sidebar+TopNav+MobileNav+<Routes>)
 │   ├── lib/
-│   │   └── supabaseClient.ts  → createClient() + isSupabaseConfigured flag (placeholder URL bilan crash oldini oladi, §8 dagi 2026-09-06 yozuviga qarang)
+│   │   ├── supabaseClient.ts  → createClient() + isSupabaseConfigured flag (placeholder URL bilan crash oldini oladi, §8 dagi 2026-09-06 yozuviga qarang)
+│   │   └── time.ts            → formatRelativeTime() — "Just now" / "5 minutes ago" / "Yesterday" / "Sep 12" (mahalliy kalendar kuni bo'yicha)
 │   ├── context/
 │   │   ├── authContext.ts     → AuthContext + AuthContextValue turi (faqat non-komponent — react-refresh lint qoidasi uchun ajratilgan)
 │   │   ├── AuthContext.tsx    → <AuthProvider> — session holati, signIn/signUp/signOut (tarmoq xatolarini try/catch bilan tutadi)
 │   │   ├── useAuth.ts         → useAuth() hook
 │   │   ├── profileContext.ts  → ProfileContext + Profile turi + avatarUrl()/displayName() yordamchilari
 │   │   ├── ProfileContext.tsx → <ProfileProvider> — joriy userning profiles qatori + updateProfile(full_name/bio)
-│   │   └── useProfile.ts      → useProfile() hook
+│   │   ├── useProfile.ts      → useProfile() hook
+│   │   ├── xpStatsContext.ts  → XpStatsContext + XpStatsContextValue turi
+│   │   ├── XpStatsContext.tsx → <XpStatsProvider> — get_my_xp_stats() (umumiy XP + streak); CourseDetail dars tugatganda reload() qiladi
+│   │   └── useXpStats.ts      → useXpStats() hook
 │   ├── data/
+│   │   ├── useAsyncData.ts    → barcha data hook'lar asosi: useAsyncData(key, load) → { data, loading, error, refreshing, reload } (§7)
 │   │   ├── courses.ts         → Course/Lesson turlari, getCourseStats(), fetchCourses(userId, courseId?) — Supabase'dan kurs+dars+progress
-│   │   └── useCourses.ts      → useCourses(courseId?) hook — { courses, loading, error, reload }
+│   │   ├── useCourses.ts      → useCourses(courseId?) hook — { courses, loading, error, refreshing, reload }
+│   │   ├── xp.ts              → XpStats/XpEvent/LeaderboardEntry turlari, fetchXpStats(), fetchRecentXpEvents(), fetchLeaderboard(), leaderboardName()
+│   │   ├── useLeaderboard.ts  → useLeaderboard() — top 50 + joriy userning o'z qatori
+│   │   └── useRecentActivity.ts → useRecentActivity(limit) — joriy userning oxirgi xp_events
 │   ├── components/
 │   │   ├── TopNav.tsx          → ~333 qator: qidiruv/bildirishnoma/profil paneli + Log Out endi signOut()ga ulangan
 │   │   ├── Sidebar.tsx          → desktop sidebar, useLocation() orqali active holat + Log Out signOut()ga ulangan
@@ -97,7 +105,8 @@ lingoglass/
     └── migrations/
         ├── 20260817000000_init_schema.sql → boshlang'ich backend schema (§8 dagi 2026-08-17 yozuvi) — PRODUCTION'GA QO'LLANGAN, tahrirlanmaydi
         ├── 20260924000000_fix_xp_dedup_and_function_grants.sql → XP takrorlanishi + anon funksiya huquqlari tuzatishi (§8 dagi 2026-09-24 "kechroq" yozuvi)
-        └── 20260924120000_complete_lesson.sql → complete_lesson() RPC + lesson_progress'ga to'g'ridan-to'g'ri yozish yopildi (§8 dagi 2026-09-24 complete_lesson yozuvi)
+        ├── 20260924120000_complete_lesson.sql → complete_lesson() RPC + lesson_progress'ga to'g'ridan-to'g'ri yozish yopildi (§8 dagi 2026-09-24 complete_lesson yozuvi)
+        └── 20260926000000_xp_stats.sql → get_my_xp_stats(p_tz) — umumiy XP + streak (§8 dagi 2026-09-26 yozuvi)
 ```
 
 ## 4. Arxitektura / navigatsiya
@@ -123,9 +132,9 @@ Sahifa o'tish animatsiyasi: `AnimatePresence mode="wait"` + `motion.div key={loc
 
 **Sahifalar tarkibi:**
 
-- `Dashboard` — welcome banner, `LearningPathSection`, 4 ta core skill card, recent activity, "Idiom of the Day"
+- `Dashboard` — welcome banner, `LearningPathSection`, 4 ta core skill card, recent activity (`xp_events`dan, oxirgi 5 ta), "Idiom of the Day"
 - `MyCourses` → `CourseDetail` — kurslar grid'i, bosilganda `/courses/:id`ga navigate qiladi
-- `Leaderboard` — top-3 podium + qolgan reyting
+- `Leaderboard` — `leaderboard_current_week` view'idan: top-3 podium (3 kishidan kam bo'lsa bo'sh joylar xira), "Your Position" kartasi, qolgan reyting (top 50)
 - `Settings` — 4 ta tab (Notifications / Language / Privacy / Learning)
 - `AdminPage` — 3 ta tab (`AdminContentManager` / `AdminQuizBuilder` / `AdminUserManagement`)
 
@@ -152,7 +161,8 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 3. **Frontend admin himoyasi yo'q:** `/admin` va Sidebar/MobileNav'dagi "Admin" havolasi har qanday login qilgan userga ko'rinadi. Yozishni RLS (`is_admin()`) to'xtatadi, lekin UI'da `is_admin()` bo'yicha yashirish/`AdminRoute` kerak.
 4. **Auth UI qisman:** parolni tiklash oqimi yo'q; email'ni o'zgartirish yo'q (profil panelida faqat ko'rsatiladi); avatar yuklash (kamera tugmasi) ishlamaydi — Storage bucket kerak; Settings'dagi "Change Password" va toggle'lar hech narsa saqlamaydi.
 5. Darsni tugatish o'z-o'zini belgilash: darslarda kontent yo'q, `complete_lesson()` "tugatdi"ni tekshira olmaydi — XP takrorlanmaydi va ketma-ketlik majburiy, lekin darslarni tez bosib chiqish mumkin. `submit_quiz_answer()` urinishlar sonini cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta).
-6. **Backend qisman ulangan:** auth, profil, kurslar/progress va darsni tugatish (`complete_lesson`) ulangan (§8 dagi 2026-09-24 yozuvlari). Leaderboard, XP/streak ko'rsatish, Recent Activity, Learning Path, Core Skills, bildirishnomalar, Idiom of the Day, Settings va Admin hamon hardcoded. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
+6. **Backend qisman ulangan:** auth, profil, kurslar/progress, darsni tugatish (`complete_lesson`), Leaderboard, TopNav streak/XP va Recent Activity ulangan (§8 dagi 2026-09-24 va 2026-09-26 yozuvlari). Learning Path, Core Skills, welcome banner matni ("24 new words this week"), bildirishnomalar (jumladan soxta "5-Day Streak!" — haqiqiy streak'ga zid bo'lishi mumkin), Idiom of the Day, Settings va Admin hamon hardcoded.
+7. **Leaderboard haftasi UTC bo'yicha** (`date_trunc('week', now())` — dushanba 00:00 UTC, Toshkentda 05:00), streak esa userning brauzer vaqt zonasida. Sahifada "resets every Monday at 00:00 UTC" deb yozilgan. `show_on_leaderboard = false` bo'lgan user reytingda ko'rinmaydi, lekin "Your Position" kartasi unga "bu hafta XP yo'q" deb ko'rsatadi — Settings ulanganda aniqlashtirish kerak. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
 
 ## 7. Konvensiyalar / qoidalar
 
@@ -166,15 +176,26 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Bu loyihani Claude Code'ning Browser pane orqali test qilishda `document.hasFocus()` doim `false` va `document.visibilityState` doim `"hidden"` bo'ladi — ya'ni `:focus`/`:focus-within` CSS pseudo-klasslari va `requestAnimationFrame`ga tayanadigan animatsiyalar avtomatik tekshiruvda ishlamaydi, garchi kod to'g'ri bo'lsa ham (haqiqiy brauzerda muammo yo'q). Bunday holatlarda `getComputedStyle` + `document.activeElement` bilan emas, build'dagi CSS qoidalarini (`grep dist/assets/*.css`) va DOM/ARIA atributlarini tekshirib tasdiqlash kerak.
 - Kod yozishdan oldin/keyin `npm run lint` (ESLint) va `npm run format` (Prettier) ishga tushirish kerak — ikkalasi ham sozlangan (§8 dagi 5-bosqich yozuviga qarang). `npm run typecheck` (`tsc --noEmit`) alohida buyruq, `lint`ning bir qismi emas.
 - **Supabase klientini hech qachon `createClient(url ?? '', key ?? '')` bilan yaratmaslik** — bo'sh string bilan chaqirilsa `createClient` **sinxron throw** qiladi va butun ilova mount bo'lishdan oldin crash bo'ladi (§8 dagi 2026-09-06 yozuvida shu xato haqiqatan sodir bo'lgan va tuzatilgan). [src/lib/supabaseClient.ts](src/lib/supabaseClient.ts)dagi `isSupabaseConfigured` + placeholder URL naqshini davom ettirish kerak.
+- **Yangi data hook — [useAsyncData](src/data/useAsyncData.ts) ustiga** (`useCourses`, `useLeaderboard`, `useRecentActivity`, `XpStatsProvider` shunday). `load()` o'qiydigan har bir qiymat (userId, courseId, limit…) `key`ga kirishi **shart** — effect faqat `key`/`reload()` bo'yicha qayta ishlaydi (`load` `useEffectEvent` orqali o'qiladi). Qo'lda `useEffect` + `setState` bilan yangi naqsh yozilmasin.
 - Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-26 — Leaderboard, XP/streak va Recent Activity Supabase'ga ulandi.** `lint`/`typecheck`/`format:check`/`build` toza; SQL PGlite'da production zanjiri (init → fix → seed → complete_lesson → yangi migratsiya ×2) bilan 44/44 sinaldi.
+
+1. **[20260926000000_xp_stats.sql](supabase/migrations/20260926000000_xp_stats.sql):** `get_my_xp_stats(p_tz text default 'UTC') returns table (total_xp, streak_days, active_today)`, **SECURITY INVOKER** (xp_events RLS'i o'zi yetarli). Streak — XP olingan ketma-ket kunlar, bugun **yoki kechada** tugaydigan (bugun hali XP yo'q bo'lsa streak uzilmagan, `active_today = false`); kunlar `p_tz` zonasida (frontend brauzerning IANA zonasini yuboradi), noma'lum zona xato bermay UTC'ga tushadi. Huquq 20260924000000 naqshida. **Nega RPC:** umumiy XP client'da yig'ilsa PostgREST "Max rows" (default 1000) chegarasidan keyin jimgina noto'g'ri bo'lardi (test: 1500 qator → 4500 XP to'g'ri). Streak testlari JS'dagi mustaqil reference bilan 7 ssenariy × 4 zona (UTC, Asia/Tashkent, UTC+14, America/Los_Angeles) taqqoslandi; "kecha" qoidasi ataylab buzilganda 5 test yiqildi.
+2. **Leaderboard** mavjud `leaderboard_current_week` view'idan (migratsiya shart emas): top 50 (`rank`, keyin `user_id` bo'yicha barqaror tartib) + joriy userning o'z qatori parallel. Podium `PodiumSlot` komponentiga chiqarildi (avval 3 marta takrorlangan markup); 3 kishidan kam bo'lsa bo'sh joylar xira "—". Podium bezagi **joy** bo'yicha, badge'dagi raqam haqiqiy `rank` (teng XP'da ikkita "1" bo'lishi mumkin). `trend = 'same'` endi kulrang `Minus` + "No change" (avval faqat up/down bor edi). "Your Position": podiumda yoki top 50 dan tashqarida bo'lsa; bu hafta XP yo'q bo'lsa — "Go to My Courses" havolasi bilan karta. Ism bo'sh bo'lsa "Anonymous learner" (email hech qachon ko'rsatilmaydi).
+3. **TopNav:** yangi streak belgisi (olov + kunlar soni) — **avval umuman yo'q edi**, yig'ilgan holatda ham ko'rinadi (panel 140 → 188px; stats yo'q/xato bo'lsa belgi ham, qo'shimcha kenglik ham yo'q). Bugun XP olingan bo'lsa to'q sariq, aks holda xira + tooltip "earn XP today to keep it". Ochilganda ism ostida umumiy XP. Mobilda ochilganda belgi yashiriladi (qidiruv maydoniga joy). Holat `XpStatsProvider` contextida; CourseDetail dars tugatganda (XP > 0) `reload()` qiladi.
+4. **Dashboard → Recent Activity:** `xp_events`dan oxirgi 5 ta (`created_at desc, id desc`), `<ul>/<li>`, ikonka `source_type` bo'yicha, vaqt `<time>` + `formatRelativeTime()`. Yuklanish/xato/bo'sh holat — `StatusPanel`. Qatorlardagi soxta `cursor-pointer` olib tashlandi (bosilganda hech narsa bo'lmasdi).
+5. **Refaktor:** [useAsyncData](src/data/useAsyncData.ts) — `useCourses`dagi "natija kaliti = so'rov kaliti" naqshi umumiy hook'ga chiqarildi (§7), `useCourses` shu ustiga ko'chirildi (tashqi API o'zgarmadi). `load` React 19.2'ning `useEffectEvent`i orqali o'qiladi.
+6. **Holat: production'ga qo'llandi va ishlashi tasdiqlandi (2026-09-26).** Foydalanuvchi migratsiyani SQL Editor'da ishga tushirdi. Browser pane'da (faqat o'qib, hech narsa yozilmadi): `get_my_xp_stats('Asia/Tashkent')` → 200, `35 XP / streak 0 / active_today false` (oxirgi XP 2026-09-24 — 2 kun oldin, streak to'g'ri 0); TopNav yig'ilgan holatda 188px, xira olov "0", ochilganda "35 XP"; Recent Activity'da 2 ta dars ("2 days ago", +20/+15 XP); Leaderboard'da 1 kishi — podiumning 1-o'rni to'lgan, 2/3 xira "—", "Your Position" kartasi. **Eslatma:** Browser pane'ning network paneli Supabase (`*.supabase.co`) so'rovlarini ko'rsatmadi — tekshiruv sahifa ichida `await import('/src/lib/supabaseClient.ts')` bilan ilovaning o'z klienti orqali qilindi (dev'da modul bir xil instansiya).
+7. **Vizual tuzatish (tekshiruvda topildi):** podium konteyneri `h-48` (192px) edi, 1-o'rin ustuni esa 216px (avatar 80 + stand 128 + 8) — yuqoriga toshib, medal ikonkasi sarlavha matni ustiga chiqardi (asl kodda ham shu geometriya bor edi, subtitle ikki qatorga o'tgach ko'zga tashlandi). `h-56` qilindi.
 
 **2026-09-24 — Darsni tugatish: `complete_lesson()` + CourseDetail tugmalari.** `lint`/`typecheck`/`format:check` toza; SQL PGlite'da production zanjiri (init → fix → seed → yangi migratsiya ×2) bilan 19/19 sinaldi.
 
 1. **[20260924120000_complete_lesson.sql](supabase/migrations/20260924120000_complete_lesson.sql):** `complete_lesson(p_lesson_id) returns int` (SECURITY DEFINER) — `auth.uid()` bo'sh bo'lsa rad; dars topilmasa `P0002`; shu kursdagi oldingi darslar tugallanmagan bo'lsa `P0001 previous lessons are not completed` (UI'dagi "Locked" qoidasi endi serverda majburiy); `lesson_progress`ga upsert; `xp_events`ga `lesson_completed` (XP = `duration_minutes`, sarlavha `Completed: <dars nomi>`) `on conflict do nothing`; berilgan XP'ni qaytaradi (qayta chaqirilsa 0). **`lesson_progress`dan INSERT/UPDATE/DELETE huquqi olindi** — faqat `select`; progress va XP doim shu funksiya orqali birga yoziladi. Funksiya huquqi 20260924000000 naqshida (revoke public/anon/authenticated → grant authenticated).
 2. **Frontend:** `completeLesson()` ([courses.ts](src/data/courses.ts)) RPC'ni chaqiradi. [CourseDetail](src/pages/CourseDetail.tsx)da "Start" → **Complete**, "Continue Lesson N" → **Complete Lesson N**; natija `role="status"` (+XP) yoki `role="alert"` (xato) bilan; so'rov va qayta yuklash tugaguncha tugmalar bloklanadi. `useCourses` endi `refreshing` qaytaradi — `reload()` paytida eski ma'lumot ekranda qoladi, sahifa yuklanish paneliga "miltillab" o'tmaydi.
-3. **Holat:** migratsiya foydalanuvchiga SQL Editor uchun berildi, lekin production'ga qo'llangani **hali tasdiqlanmagan**. Qo'llanmaguncha "Complete" tugmasi `Could not find the function public.complete_lesson` kabi xato ko'rsatadi (sahifaning qolgan qismi ishlaydi). Haqiqiy akkauntda tugatish Browser pane'da sinalmadi (haqiqiy progress/XP yozadi — ruxsat kerak).
+3. **Holat: production'ga qo'llandi va ishlashi tasdiqlandi (2026-09-24).** Foydalanuvchi migratsiyani SQL Editor'da ishga tushirdi ("Success"). Keyin Browser pane'da (hech narsa bosilmasdan, faqat o'qib) tekshirildi: foydalanuvchi o'zi TOEFL'ning 1–2-darslarini tugatgan — CourseDetail'da `2/6 lessons · 33%`, 1–2 "Done", 3-dars "Complete", 4–6 "Locked"; MyCourses'da TOEFL `2/6 Done, 33%`. Ya'ni RPC, progress o'qish va ketma-ketlik haqiqiy bazada ishlaydi.
 
 **2026-09-24 — Frontend: profil va kurslar Supabase'ga ulandi.** Hammasi `lint`/`typecheck`/`format:check`/`build` bilan va Browser pane'da haqiqiy akkaunt bilan (foydalanuvchi o'zi login qildi) tekshirildi:
 

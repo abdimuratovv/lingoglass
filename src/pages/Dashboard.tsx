@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import {
   Headphones,
   BookOpen,
-  Type,
   PenLine,
   Mic,
   Star,
@@ -11,10 +10,16 @@ import {
   ChevronRight,
   Clock,
   TrendingUp,
+  CheckCircle,
+  Flame,
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useProfile } from '../context/useProfile';
 import { displayName } from '../context/profileContext';
+import { useRecentActivity } from '../data/useRecentActivity';
+import type { XpEvent, XpSourceType } from '../data/xp';
+import { formatRelativeTime } from '../lib/time';
+import { StatusPanel } from '../components/ui/StatusPanel';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -56,14 +61,7 @@ export function Dashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4 px-2">Recent Activity</h3>
-          <div className="glass-panel rounded-3xl p-2">
-            <ActivityRow icon={<Headphones size={18} />} title="Podcast: Daily Life" time="2h ago" score="+15 XP" />
-            <ActivityRow icon={<Type size={18} />} title="Vocabulary Quiz: Travel" time="Yesterday" score="+40 XP" />
-            <ActivityRow icon={<BookOpen size={18} />} title="Article: Technology" time="2 days ago" score="+25 XP" />
-          </div>
-        </div>
+        <RecentActivitySection />
       </div>
 
       {/* Right Column */}
@@ -190,20 +188,61 @@ function LearningPathSection() {
   );
 }
 
-function ActivityRow({ icon, title, time, score }: { icon: ReactNode; title: string; time: string; score: string }) {
+const ACTIVITY_ICONS: Record<XpSourceType, ReactNode> = {
+  lesson_completed: <BookOpen size={18} />,
+  quiz_answer_correct: <CheckCircle size={18} />,
+  streak_bonus: <Flame size={18} />,
+};
+
+function RecentActivitySection() {
+  const { events, loading, error, reload } = useRecentActivity(5);
+
   return (
-    <div className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors cursor-pointer">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-navy shadow-sm">
-          {icon}
+    <div>
+      <h3 className="text-lg font-semibold mb-4 px-2">Recent Activity</h3>
+      {loading || error || events?.length === 0 ? (
+        <StatusPanel
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          message="No activity yet — complete a lesson to earn your first XP."
+        />
+      ) : (
+        <ul className="glass-panel rounded-3xl p-2">
+          {events?.map((event) => (
+            <ActivityRow key={event.id} event={event} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ActivityRow({ event }: { event: XpEvent }) {
+  return (
+    <li className="flex items-center justify-between gap-3 p-3 hover:bg-white/5 rounded-xl transition-colors">
+      <div className="flex items-center gap-4 min-w-0">
+        <div
+          aria-hidden="true"
+          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-navy shadow-sm shrink-0"
+        >
+          {ACTIVITY_ICONS[event.sourceType] ?? <Star size={18} />}
         </div>
-        <div>
-          <h5 className="font-medium text-sm">{title}</h5>
-          <p className="text-xs text-navy/60">{time}</p>
+        <div className="min-w-0">
+          <h5 className="font-medium text-sm truncate">{event.title}</h5>
+          <time
+            dateTime={event.createdAt}
+            title={new Date(event.createdAt).toLocaleString('en')}
+            className="text-xs text-navy/60"
+          >
+            {formatRelativeTime(event.createdAt)}
+          </time>
         </div>
       </div>
-      <span className="text-sm font-semibold text-amaranth bg-amaranth/10 px-2 py-1 rounded-md">{score}</span>
-    </div>
+      <span className="text-sm font-semibold text-amaranth bg-amaranth/10 px-2 py-1 rounded-md shrink-0">
+        +{event.xpAmount} XP
+      </span>
+    </li>
   );
 }
 

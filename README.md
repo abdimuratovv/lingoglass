@@ -5,7 +5,7 @@
 
 Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn konsepsiyasi — _Light Theme Liquid Glassmorphism_: shaffof/blur'langan panellar va `layoutId` orqali "suyuq" animatsiyali navigatsiya indikatori.
 
-> **Loyiha holati:** UI + Supabase backend (Frankfurt). Auth (signup/login/logout, protected route), joriy userning profili va kurslar/darslar/progress bazadan keladi. Leaderboard, XP/streak, bildirishnomalar, Settings va Admin panellari hamon hardcoded. Schema [`supabase/migrations/`](supabase/migrations/) da, boshlang'ich kontent [`supabase/seed.sql`](supabase/seed.sql) da.
+> **Loyiha holati:** UI + Supabase backend (Frankfurt). Auth (signup/login/logout, protected route), joriy userning profili, kurslar/darslar/progress, haftalik Leaderboard, XP/streak (TopNav) va Dashboard'dagi Recent Activity bazadan keladi. Bildirishnomalar, Settings va Admin panellari hamon hardcoded. Schema [`supabase/migrations/`](supabase/migrations/) da, boshlang'ich kontent [`supabase/seed.sql`](supabase/seed.sql) da.
 
 ## Texnologiyalar
 
@@ -66,19 +66,24 @@ Himoyalangan marshrutlarga sessiyasiz kirilsa `/login`ga redirect qilinadi ([`Pr
 
 ```
 src/
-├── main.tsx                 # BrowserRouter + AuthProvider + ProfileProvider + createRoot
+├── main.tsx                 # BrowserRouter + AuthProvider + ProfileProvider + XpStatsProvider + createRoot
 ├── App.tsx                  # /login + himoyalangan AppShell (Sidebar+TopNav+MobileNav) <Routes>
 ├── index.css                # Tailwind @theme tokenlar + glassmorphism CSS sinflari
 ├── vite-env.d.ts             # import.meta.env uchun TS turlari (VITE_SUPABASE_*)
 ├── lib/supabaseClient.ts     # Supabase klienti + isSupabaseConfigured flag
+├── lib/time.ts               # formatRelativeTime() — "5 minutes ago", "Yesterday", ...
 ├── context/
 │   ├── authContext.ts         # AuthContext + AuthContextValue turi (faqat non-komponent)
 │   ├── AuthContext.tsx         # <AuthProvider> — session holati, signIn/signUp/signOut
 │   ├── useAuth.ts              # useAuth() hook
-│   └── profileContext.ts / ProfileContext.tsx / useProfile.ts  # joriy userning profili
+│   ├── profileContext.ts / ProfileContext.tsx / useProfile.ts  # joriy userning profili
+│   └── xpStatsContext.ts / XpStatsContext.tsx / useXpStats.ts  # umumiy XP + streak (TopNav)
 ├── data/
+│   ├── useAsyncData.ts         # data hook'lar asosi — { data, loading, error, refreshing, reload }
 │   ├── courses.ts              # Course/Lesson turlari, getCourseStats(), fetchCourses() (Supabase)
-│   └── useCourses.ts           # useCourses() hook — { courses, loading, error, reload }
+│   ├── useCourses.ts           # useCourses() hook
+│   ├── xp.ts                   # XpStats/XpEvent/LeaderboardEntry, fetchXpStats/RecentXpEvents/Leaderboard
+│   └── useLeaderboard.ts / useRecentActivity.ts
 ├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle, ui/StatusPanel
 └── pages/                     # Login, Dashboard, MyCourses, CourseDetail, Leaderboard,
                                # Settings, admin/*
@@ -103,14 +108,14 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
    VITE_SUPABASE_URL=https://xxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=eyJ...
    ```
-4. [`supabase/migrations/`](supabase/migrations/) dagi fayllarni **nom tartibida** (sanasi bo'yicha) loyihangizning SQL Editor'ida birma-bir ishga tushiring — avval `20260817000000_init_schema.sql`, keyin `20260924000000_fix_xp_dedup_and_function_grants.sql`, keyin `20260924120000_complete_lesson.sql`. Qo'llangan migratsiya fayli hech qachon tahrirlanmaydi, har bir o'zgarish yangi fayl bo'ladi.
+4. [`supabase/migrations/`](supabase/migrations/) dagi fayllarni **nom tartibida** (sanasi bo'yicha) loyihangizning SQL Editor'ida birma-bir ishga tushiring — avval `20260817000000_init_schema.sql`, keyin `20260924000000_fix_xp_dedup_and_function_grants.sql`, `20260924120000_complete_lesson.sql`, `20260926000000_xp_stats.sql`. Qo'llangan migratsiya fayli hech qachon tahrirlanmaydi, har bir o'zgarish yangi fayl bo'ladi.
 5. So'ng [`supabase/seed.sql`](supabase/seed.sql) ni ham SQL Editor'da ishga tushiring — boshlang'ich kontent (4 kurs, 60 dars, quizlar, idiom). Qayta ishga tushirish xavfsiz: hech narsa takrorlanmaydi.
 6. `npm run dev` — endi `/login` sahifasida haqiqiy signup/login ishlaydi.
 7. Ro'yxatdan o'tgandan keyin o'zingizni admin qiling (SQL Editor'da, `id`ni **Authentication → Users** dan oling): `insert into public.admin_users values ('<user-id>');`
 
 `.env.local` **hech qachon commit qilinmaydi** (`.gitignore`da). `anon` kalit RLS orqali himoyalangan, klient tomonda ishlatilishi uchun mo'ljallangan — lekin `service_role` kalitini hech qachon frontend kodiga qo'ymang.
 
-**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi), darsni tugatish (`complete_lesson()` — progress + XP). **Hali ulanmagan:** `xp_events`/leaderboard, `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari.
+**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi), darsni tugatish (`complete_lesson()` — progress + XP), `leaderboard_current_week` (Leaderboard sahifasi), `xp_events` (Dashboard → Recent Activity), `get_my_xp_stats()` (TopNav'dagi streak + umumiy XP). **Hali ulanmagan:** `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari.
 
 ## Deploy (Render)
 
@@ -130,7 +135,8 @@ Loyiha sof client-side SPA (server kodi yo'q) — Render'da **Static Site** sifa
 
 - [x] Supabase auth ulash (signup/login/logout, protected route)
 - [x] Kurslar va profilni hardcoded'dan Supabase'ga o'tkazish
-- [ ] Leaderboard/XP/streak/bildirishnomalar/Settings'ni Supabase'ga ulash
+- [x] Leaderboard, XP/streak va Recent Activity'ni Supabase'ga ulash
+- [ ] Bildirishnomalar/Settings'ni Supabase'ga ulash
 - [ ] Test infratuzilmasi (hozircha test yo'q)
 - [ ] Vizual accessibility audit (rang kontrasti, `prefers-reduced-motion`)
 - [ ] Placeholder rasmlarni (`picsum.photos`) real assetlarga almashtirish
