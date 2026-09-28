@@ -1,4 +1,13 @@
+import { useState } from 'react';
+import { Select } from '../../components/ui/Select';
+
+const LEVEL_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => ({ value: l, label: l }));
+const CATEGORY_OPTIONS = ['Grammar', 'Vocabulary', 'Reading', 'Listening'].map((c) => ({ value: c, label: c }));
+
 export function AdminQuizBuilder() {
+  const [level, setLevel] = useState('B1');
+  const [category, setCategory] = useState('Grammar');
+
   return (
     <div className="glass-panel rounded-3xl p-6 h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -46,30 +55,28 @@ export function AdminQuizBuilder() {
 
           <div className="flex gap-4 mb-6">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-navy/80 mb-1.5">Target Level</label>
-              <select
-                defaultValue="B1"
-                className="w-full bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amaranth/50 transition-all"
-              >
-                <option>A1</option>
-                <option>A2</option>
-                <option>B1</option>
-                <option>B2</option>
-                <option>C1</option>
-                <option>C2</option>
-              </select>
+              <label htmlFor="quiz-target-level" className="block text-sm font-medium text-navy/80 mb-1.5">
+                Target Level
+              </label>
+              <Select
+                id="quiz-target-level"
+                value={level}
+                onChange={setLevel}
+                options={LEVEL_OPTIONS}
+                className="w-full"
+              />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-navy/80 mb-1.5">Category</label>
-              <select
-                defaultValue="Grammar"
-                className="w-full bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-amaranth/50 transition-all"
-              >
-                <option>Grammar</option>
-                <option>Vocabulary</option>
-                <option>Reading</option>
-                <option>Listening</option>
-              </select>
+              <label htmlFor="quiz-category" className="block text-sm font-medium text-navy/80 mb-1.5">
+                Category
+              </label>
+              <Select
+                id="quiz-category"
+                value={category}
+                onChange={setCategory}
+                options={CATEGORY_OPTIONS}
+                className="w-full"
+              />
             </div>
           </div>
 

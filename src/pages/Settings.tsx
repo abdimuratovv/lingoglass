@@ -1,9 +1,102 @@
-import { useState, type ReactNode } from 'react';
-import { BellRing, Globe, Shield, BookOpen } from 'lucide-react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { BellRing, Globe, Shield, BookOpen, Loader2, Check } from 'lucide-react';
 import { Toggle } from '../components/ui/Toggle';
+import { Select, type SelectOption } from '../components/ui/Select';
+import { StatusPanel } from '../components/ui/StatusPanel';
+import { useSettings } from '../context/useSettings';
+import { useProfile } from '../context/useProfile';
+import type { ProfileUpdate } from '../context/profileContext';
+import type { UserSettings, UserSettingsUpdate } from '../data/settings';
+import { browserTimeZone } from '../lib/time';
+
+const TABS = [
+  { id: 'notifications', label: 'Notifications', icon: <BellRing size={18} /> },
+  { id: 'language', label: 'Language & Region', icon: <Globe size={18} /> },
+  { id: 'privacy', label: 'Privacy & Security', icon: <Shield size={18} /> },
+  { id: 'learning', label: 'Learning Preferences', icon: <BookOpen size={18} /> },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
+const INTERFACE_LANGUAGES: SelectOption[] = [
+  { value: 'en', label: 'English' },
+  { value: 'uz', label: "O'zbek" },
+  { value: 'ru', label: 'Русский' },
+  { value: 'es', label: 'Español' },
+];
+
+const DAILY_GOALS = [15, 30, 60];
+
+const CEFR_LEVELS: SelectOption[] = [
+  { value: '', label: 'Not set' },
+  { value: 'A1', label: 'A1 Beginner' },
+  { value: 'A2', label: 'A2 Elementary' },
+  { value: 'B1', label: 'B1 Intermediate' },
+  { value: 'B2', label: 'B2 Upper Intermediate' },
+  { value: 'C1', label: 'C1 Advanced' },
+  { value: 'C2', label: 'C2 Proficiency' },
+];
+
+const FOCUS_AREAS = [
+  { id: 'vocabulary', label: 'Vocabulary' },
+  { id: 'grammar', label: 'Grammar' },
+  { id: 'listening', label: 'Listening' },
+  { id: 'speaking', label: 'Speaking' },
+  { id: 'reading', label: 'Reading' },
+];
+
+type SaveState = { status: 'idle' | 'saving' | 'saved' } | { status: 'error'; message: string };
+
+/** Bir nechta parallel saqlashdan umumiy holat: hammasi tugaguncha "Saving…", birortasi yiqilsa — xato. */
+function useSaveStatus() {
+  const [state, setState] = useState<SaveState>({ status: 'idle' });
+  const inFlight = useRef(0);
+
+  const track = useCallback(async (save: Promise<{ error: string | null }>) => {
+    inFlight.current += 1;
+    setState({ status: 'saving' });
+    const { error } = await save;
+    inFlight.current -= 1;
+    if (error) setState({ status: 'error', message: error });
+    else if (inFlight.current === 0) setState((s) => (s.status === 'error' ? s : { status: 'saved' }));
+  }, []);
+
+  return { state, track };
+}
 
 export function Settings() {
-  const [activeSettingsTab, setActiveSettingsTab] = useState('notifications');
+  const [params, setParams] = useSearchParams();
+  const tabParam = params.get('tab');
+  const activeTab: TabId = TABS.find((t) => t.id === tabParam)?.id ?? 'notifications';
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label;
+
+  const { settings, loading, error, reload, updateSettings } = useSettings();
+  const { profile, updateProfile } = useProfile();
+  const { state: saveState, track } = useSaveStatus();
+  // Profil maydonlari javob kelguncha tanlangan qiymatda turadi (select eski qiymatga "sakramasin").
+  const [profileDraft, setProfileDraft] = useState<ProfileUpdate>({});
+
+  const setSetting = (patch: UserSettingsUpdate) => void track(updateSettings(patch));
+
+  const setProfileField = (patch: ProfileUpdate) => {
+    setProfileDraft((d) => ({ ...d, ...patch }));
+    const run = updateProfile(patch).then((res) => {
+      setProfileDraft((d) => {
+        const next = { ...d };
+        for (const k of Object.keys(patch) as (keyof ProfileUpdate)[]) {
+          if (next[k] === patch[k]) delete next[k];
+        }
+        return next;
+      });
+      return res;
+    });
+    void track(run);
+  };
+
+  const dailyGoal =
+    'daily_goal_minutes' in profileDraft ? profileDraft.daily_goal_minutes : profile?.daily_goal_minutes;
+  const cefrLevel = 'cefr_level' in profileDraft ? profileDraft.cefr_level : profile?.cefr_level;
 
   return (
     <div className="flex-1 flex flex-col gap-6 pb-20 md:pb-0 max-w-4xl mx-auto w-full">
@@ -12,230 +105,336 @@ export function Settings() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Settings Navigation */}
         <div className="md:col-span-1 flex flex-col gap-2">
-          <SettingsTab
-            icon={<BellRing size={18} />}
-            label="Notifications"
-            active={activeSettingsTab === 'notifications'}
-            onClick={() => setActiveSettingsTab('notifications')}
-          />
-          <SettingsTab
-            icon={<Globe size={18} />}
-            label="Language & Region"
-            active={activeSettingsTab === 'language'}
-            onClick={() => setActiveSettingsTab('language')}
-          />
-          <SettingsTab
-            icon={<Shield size={18} />}
-            label="Privacy & Security"
-            active={activeSettingsTab === 'privacy'}
-            onClick={() => setActiveSettingsTab('privacy')}
-          />
-          <SettingsTab
-            icon={<BookOpen size={18} />}
-            label="Learning Preferences"
-            active={activeSettingsTab === 'learning'}
-            onClick={() => setActiveSettingsTab('learning')}
-          />
+          {TABS.map((tab) => (
+            <SettingsTab
+              key={tab.id}
+              icon={tab.icon}
+              label={tab.label}
+              active={activeTab === tab.id}
+              onClick={() => setParams({ tab: tab.id }, { replace: true })}
+            />
+          ))}
         </div>
 
         {/* Settings Content */}
-        <div className="md:col-span-2 glass-panel rounded-3xl p-6 md:p-8 flex flex-col gap-6">
-          {/* Notifications */}
-          {activeSettingsTab === 'notifications' && (
+        {!settings ? (
+          <div className="md:col-span-2">
+            <StatusPanel loading={loading} error={error} onRetry={reload} />
+          </div>
+        ) : (
+          <div className="md:col-span-2 glass-panel rounded-3xl p-6 md:p-8 flex flex-col gap-6">
             <div>
-              <h3 className="text-xl font-bold mb-6">Notifications</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Push Notifications</h4>
-                    <p className="text-sm text-navy/60">Receive push notifications for reminders.</p>
-                  </div>
-                  <Toggle label="Push Notifications" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Email Notifications</h4>
-                    <p className="text-sm text-navy/60">Get weekly progress reports via email.</p>
-                  </div>
-                  <Toggle label="Email Notifications" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Streak Reminders</h4>
-                    <p className="text-sm text-navy/60">Daily reminders to maintain your streak.</p>
-                  </div>
-                  <Toggle label="Streak Reminders" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Leaderboard Updates</h4>
-                    <p className="text-sm text-navy/60">Notify when your rank changes.</p>
-                  </div>
-                  <Toggle label="Leaderboard Updates" />
-                </div>
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <h3 className="text-xl font-bold">{activeLabel}</h3>
+                <SaveIndicator state={saveState} />
               </div>
-            </div>
-          )}
+              {saveState.status === 'error' && (
+                <p
+                  role="alert"
+                  className="text-sm text-red-500 bg-red-50/60 border border-red-200/60 rounded-xl px-3 py-2 mb-4"
+                >
+                  Couldn't save: {saveState.message}. Your settings were reloaded from the server.
+                </p>
+              )}
 
-          {/* Language & Region */}
-          {activeSettingsTab === 'language' && (
-            <div>
-              <h3 className="text-xl font-bold mb-6">Language & Region</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Interface Language</h4>
-                    <p className="text-sm text-navy/60">Display language for the app interface.</p>
-                  </div>
-                  <select
-                    aria-label="Interface Language"
-                    defaultValue="English"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
-                  >
-                    <option>English</option>
-                    <option>O'zbek</option>
-                    <option>Русский</option>
-                    <option>Español</option>
-                  </select>
+              {activeTab === 'notifications' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-navy/60">
+                    Your choices are saved to your account. LingoGlass doesn't send notifications yet — once it does, it
+                    will follow these settings.
+                  </p>
+                  <ToggleRow
+                    settings={settings}
+                    field="push_notifications"
+                    title="Push Notifications"
+                    description="Receive push notifications for reminders."
+                    onChange={setSetting}
+                  />
+                  <ToggleRow
+                    settings={settings}
+                    field="email_notifications"
+                    title="Email Notifications"
+                    description="Get weekly progress reports via email."
+                    onChange={setSetting}
+                  />
+                  <ToggleRow
+                    settings={settings}
+                    field="streak_reminders"
+                    title="Streak Reminders"
+                    description="Daily reminders to maintain your streak."
+                    onChange={setSetting}
+                  />
+                  <ToggleRow
+                    settings={settings}
+                    field="leaderboard_updates"
+                    title="Leaderboard Updates"
+                    description="Notify when your rank changes."
+                    onChange={setSetting}
+                  />
                 </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Learning Language</h4>
-                    <p className="text-sm text-navy/60">The language you are currently learning.</p>
-                  </div>
-                  <select
-                    aria-label="Learning Language"
-                    defaultValue="English"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
-                  >
-                    <option>English</option>
-                    <option>French</option>
-                    <option>German</option>
-                    <option>Spanish</option>
-                    <option>Japanese</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Time Zone</h4>
-                    <p className="text-sm text-navy/60">Used for streak tracking and reminders.</p>
-                  </div>
-                  <select
-                    aria-label="Time Zone"
-                    defaultValue="Asia/Tashkent"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
-                  >
-                    <option>Asia/Tashkent (UTC+5)</option>
-                    <option>Europe/London (UTC+0)</option>
-                    <option>America/New_York (UTC-5)</option>
-                    <option>Asia/Tokyo (UTC+9)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Privacy & Security */}
-          {activeSettingsTab === 'privacy' && (
-            <div>
-              <h3 className="text-xl font-bold mb-6">Privacy & Security</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Show on Leaderboard</h4>
-                    <p className="text-sm text-navy/60">Allow your name to appear in the leaderboard.</p>
-                  </div>
-                  <Toggle label="Show on Leaderboard" defaultChecked />
+              {activeTab === 'language' && (
+                <div className="space-y-4">
+                  <SettingRow
+                    title="Interface Language"
+                    description="Display language for the app interface. Only English is available for now."
+                    notActive
+                  >
+                    <Select
+                      label="Interface Language"
+                      value={settings.interface_language}
+                      onChange={(interface_language) => setSetting({ interface_language })}
+                      options={withCurrent(INTERFACE_LANGUAGES, settings.interface_language)}
+                    />
+                  </SettingRow>
+                  <SettingRow title="Learning Language" description="LingoGlass currently teaches English only.">
+                    <span className="text-sm font-medium text-charcoal px-3">English</span>
+                  </SettingRow>
+                  <SettingRow
+                    title="Time Zone"
+                    description="Used to count your daily streak. The weekly leaderboard resets on Monday 00:00 UTC for everyone."
+                    stacked
+                  >
+                    <TimeZoneSelect value={settings.timezone} onChange={(timezone) => setSetting({ timezone })} />
+                  </SettingRow>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Share Progress</h4>
-                    <p className="text-sm text-navy/60">Let others see your learning progress.</p>
-                  </div>
-                  <Toggle label="Share Progress" />
-                </div>
-                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
-                  <div>
-                    <h4 className="font-medium">Change Password</h4>
-                    <p className="text-sm text-navy/60">Update your account password.</p>
-                  </div>
-                  <button className="px-5 py-2 bg-charcoal hover:bg-charcoal/90 text-white rounded-xl text-sm font-medium transition-colors shadow-md">
-                    Update Password
-                  </button>
-                </div>
-                <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200/50 space-y-3">
-                  <div>
-                    <h4 className="font-medium text-red-600">Delete Account</h4>
-                    <p className="text-sm text-red-500/80">Permanently delete your account and all data.</p>
-                  </div>
-                  <button className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md">
-                    Delete Account
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Learning Preferences */}
-          {activeSettingsTab === 'learning' && (
-            <div>
-              <h3 className="text-xl font-bold mb-4">Learning Preferences</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Daily Goal</h4>
-                    <p className="text-sm text-navy/60">How much time do you want to spend learning?</p>
+              {activeTab === 'privacy' && (
+                <div className="space-y-4">
+                  <ToggleRow
+                    settings={settings}
+                    field="show_on_leaderboard"
+                    title="Show on Leaderboard"
+                    description="Show your name and weekly XP on the leaderboard. When off, other learners can't see you there."
+                    onChange={setSetting}
+                  />
+                  <ToggleRow
+                    settings={settings}
+                    field="share_progress"
+                    title="Share Progress"
+                    description="Let others see your learning progress."
+                    notActive
+                    onChange={setSetting}
+                  />
+                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
+                    <div>
+                      <h4 className="font-medium">Change Password</h4>
+                      <p className="text-sm text-navy/60">Update your account password.</p>
+                    </div>
+                    <button className="px-5 py-2 bg-charcoal hover:bg-charcoal/90 text-white rounded-xl text-sm font-medium transition-colors shadow-md">
+                      Update Password
+                    </button>
                   </div>
-                  <select
-                    aria-label="Daily Goal"
-                    defaultValue="30 mins / day"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
-                  >
-                    <option>15 mins / day</option>
-                    <option>30 mins / day</option>
-                    <option>60 mins / day</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Current Level</h4>
-                    <p className="text-sm text-navy/60">Your estimated proficiency level.</p>
+                  <div className="p-4 bg-red-50/50 rounded-2xl border border-red-200/50 space-y-3">
+                    <div>
+                      <h4 className="font-medium text-red-600">Delete Account</h4>
+                      <p className="text-sm text-red-500/80">Permanently delete your account and all data.</p>
+                    </div>
+                    <button className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md">
+                      Delete Account
+                    </button>
                   </div>
-                  <select
-                    aria-label="Current Level"
-                    defaultValue="B1 Intermediate"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
-                  >
-                    <option>A1 Beginner</option>
-                    <option>A2 Elementary</option>
-                    <option>B1 Intermediate</option>
-                    <option>B2 Upper Intermediate</option>
-                    <option>C1 Advanced</option>
-                  </select>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                  <div>
-                    <h4 className="font-medium">Focus Areas</h4>
-                    <p className="text-sm text-navy/60">Prioritize specific skills in recommendations.</p>
-                  </div>
-                  <select
-                    aria-label="Focus Areas"
-                    defaultValue="Vocabulary"
-                    className="bg-gradient-to-r from-white/10 to-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-sm font-medium outline-none"
+              )}
+
+              {activeTab === 'learning' && (
+                <div className="space-y-4">
+                  <SettingRow
+                    title="Daily Goal"
+                    description="How much time do you want to spend learning each day?"
+                    notActive
                   >
-                    <option>Vocabulary</option>
-                    <option>Grammar</option>
-                    <option>Listening</option>
-                    <option>Speaking</option>
-                    <option>Reading</option>
-                  </select>
+                    <Select
+                      label="Daily Goal"
+                      value={dailyGoal === undefined ? '' : String(dailyGoal)}
+                      disabled={dailyGoal === undefined}
+                      placeholder="—"
+                      onChange={(v) => setProfileField({ daily_goal_minutes: Number(v) })}
+                      options={[...new Set([...DAILY_GOALS, ...(dailyGoal === undefined ? [] : [dailyGoal])])]
+                        .sort((a, b) => a - b)
+                        .map((m) => ({ value: String(m), label: `${m} mins / day` }))}
+                    />
+                  </SettingRow>
+                  <SettingRow
+                    title="Current Level"
+                    description="Your estimated proficiency level, shown on your profile."
+                  >
+                    <Select
+                      label="Current Level"
+                      value={cefrLevel ?? ''}
+                      disabled={!profile}
+                      onChange={(v) => setProfileField({ cefr_level: v || null })}
+                      options={withCurrent(CEFR_LEVELS, cefrLevel ?? '')}
+                    />
+                  </SettingRow>
+                  <SettingRow
+                    title="Focus Areas"
+                    description="Skills to prioritize in lesson recommendations."
+                    notActive
+                    stacked
+                  >
+                    <div role="group" aria-label="Focus Areas" className="flex flex-wrap gap-2">
+                      {FOCUS_AREAS.map(({ id, label }) => {
+                        const on = settings.focus_areas.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() =>
+                              setSetting({
+                                focus_areas: on
+                                  ? settings.focus_areas.filter((a) => a !== id)
+                                  : [...settings.focus_areas, id],
+                              })
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-sm border transition-colors ${on ? 'bg-amaranth/10 text-amaranth border-amaranth/30 font-semibold' : 'bg-white/30 text-charcoal border-white/20 hover:bg-white/40'}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </SettingRow>
                 </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+/** Bazadagi qiymat ro'yxatda bo'lmasa ham ko'rsatiladi — aks holda select jimgina birinchi variantni ko'rsatardi. */
+function withCurrent(options: SelectOption[], current: string): SelectOption[] {
+  return !current || options.some((o) => o.value === current)
+    ? options
+    : [...options, { value: current, label: current }];
+}
+
+type BooleanField = {
+  [K in keyof UserSettings]: UserSettings[K] extends boolean ? K : never;
+}[keyof UserSettings];
+
+function ToggleRow({
+  settings,
+  field,
+  title,
+  description,
+  notActive,
+  onChange,
+}: {
+  settings: UserSettings;
+  field: BooleanField;
+  title: string;
+  description: string;
+  notActive?: boolean;
+  onChange: (patch: UserSettingsUpdate) => void;
+}) {
+  return (
+    <SettingRow title={title} description={description} notActive={notActive}>
+      <Toggle label={title} checked={settings[field]} onChange={(checked) => onChange({ [field]: checked })} />
+    </SettingRow>
+  );
+}
+
+function SettingRow({
+  title,
+  description,
+  notActive = false,
+  stacked = false,
+  children,
+}: {
+  title: string;
+  description: string;
+  /** Qiymat saqlanadi, lekin ilovada hali hech narsaga ta'sir qilmaydi — userni chalg'itmaslik uchun belgilanadi. */
+  notActive?: boolean;
+  stacked?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`p-4 bg-white/5 rounded-2xl border border-white/10 ${stacked ? 'space-y-3' : 'flex items-center justify-between gap-4'}`}
+    >
+      <div className="min-w-0">
+        <h4 className="font-medium flex items-center gap-2 flex-wrap">
+          {title}
+          {notActive && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-navy/50 bg-navy/5 border border-navy/10 px-2 py-0.5 rounded-full">
+              Not active yet
+            </span>
+          )}
+        </h4>
+        <p className="text-sm text-navy/60">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SaveIndicator({ state }: { state: SaveState }) {
+  return (
+    <div aria-live="polite" className="text-xs font-medium shrink-0">
+      {state.status === 'saving' && (
+        <span className="flex items-center gap-1.5 text-navy/60">
+          <Loader2 size={12} className="animate-spin" aria-hidden="true" /> Saving…
+        </span>
+      )}
+      {state.status === 'saved' && (
+        <span className="flex items-center gap-1.5 text-emerald-600">
+          <Check size={12} aria-hidden="true" /> Saved
+        </span>
+      )}
+    </div>
+  );
+}
+
+let timeZoneCache: SelectOption[] | null = null;
+
+/** Brauzer biladigan barcha IANA zonalar, hozirgi UTC siljishi bilan (bir marta hisoblanadi). */
+function allTimeZones(): SelectOption[] {
+  if (timeZoneCache) return timeZoneCache;
+  let ids: string[];
+  try {
+    ids = Intl.supportedValuesOf('timeZone');
+  } catch {
+    ids = [];
+  }
+  if (!ids.includes('UTC')) ids = ['UTC', ...ids];
+  const now = new Date();
+  timeZoneCache = ids.map((id) => {
+    let offset = '';
+    try {
+      offset =
+        new Intl.DateTimeFormat('en-US', { timeZone: id, timeZoneName: 'shortOffset' })
+          .formatToParts(now)
+          .find((p) => p.type === 'timeZoneName')?.value ?? '';
+    } catch {
+      // eski brauzer shortOffset'ni bilmasa — faqat nomi
+    }
+    const name = id.replace(/_/g, ' ');
+    return { value: id, label: offset ? `${name} (${offset})` : name };
+  });
+  return timeZoneCache;
+}
+
+function TimeZoneSelect({ value, onChange }: { value: string | null; onChange: (timezone: string | null) => void }) {
+  const detected = browserTimeZone().replace(/_/g, ' ');
+  const options = [{ value: '', label: `Automatic (${detected})` }, ...withCurrent(allTimeZones(), value ?? '')];
+
+  return (
+    <Select
+      label="Time Zone"
+      value={value ?? ''}
+      onChange={(v) => onChange(v || null)}
+      options={options}
+      searchable
+      searchPlaceholder="Search city or region…"
+      className="w-full sm:w-80"
+    />
   );
 }
 

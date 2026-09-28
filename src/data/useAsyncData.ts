@@ -38,6 +38,10 @@ export function useAsyncData<T>(key: string | null, load: () => Promise<T>) {
   }, [key, reloadCount]);
 
   const reload = useCallback(() => setReloadCount((n) => n + 1), []);
+  /** Yuklangan ma'lumotni lokal o'zgartiradi (optimistik yangilash); serverga yozish chaqiruvchining ishi. */
+  const mutate = useCallback((update: (data: T) => T) => {
+    setResult((r) => (r.data === null ? r : { ...r, data: update(r.data) }));
+  }, []);
   const current = key !== null && result.key === key;
 
   return {
@@ -46,5 +50,6 @@ export function useAsyncData<T>(key: string | null, load: () => Promise<T>) {
     loading: !current,
     refreshing: current && result.reloadCount !== reloadCount,
     reload,
+    mutate,
   };
 }

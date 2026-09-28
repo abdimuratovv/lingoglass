@@ -9,7 +9,7 @@ export interface Profile {
   daily_goal_minutes: number;
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'full_name' | 'bio'>>;
+export type ProfileUpdate = Partial<Pick<Profile, 'full_name' | 'bio' | 'cefr_level' | 'daily_goal_minutes'>>;
 
 export interface ProfileContextValue {
   profile: Profile | null;

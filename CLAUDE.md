@@ -6,7 +6,7 @@ Bu fayl **LingoGlass** loyihasi bo'yicha Claude uchun doimiy gid (Obsidian/ikkin
 
 **LingoGlass** — ingliz tili o'rganish platformasi uchun **frontend dashboard prototipi**. Dizayn konsepsiyasi: _Light Theme Liquid Glassmorphism_ — shaffof/blur'langan panellar + `layoutId` orqali "suyuq" navigatsiya indikatori.
 
-**Hozirgi holat: UI maketi + Supabase auth + profil, kurslar, XP va leaderboard bazaga ulangan (2026-09-26, §8 ga qarang).** Signup/login/logout, protected route, joriy userning profili (TopNav/Dashboard, profilni tahrirlash), kurslar/darslar/progress (MyCourses/CourseDetail), haftalik Leaderboard, TopNav'dagi streak + umumiy XP va Dashboard'dagi Recent Activity Supabase'dan keladi. Learning Path, Core Skills, welcome banner'dagi "24 new words", bildirishnomalar, Idiom of the Day, Settings va Admin panellari hamon **hardcoded**. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
+**Hozirgi holat: UI maketi + Supabase auth + profil, kurslar, XP, leaderboard va Settings bazaga ulangan (2026-09-28, §8 ga qarang).** Signup/login/logout, protected route, joriy userning profili (TopNav/Dashboard, profilni tahrirlash), kurslar/darslar/progress (MyCourses/CourseDetail), haftalik Leaderboard, TopNav'dagi streak + umumiy XP, Dashboard'dagi Recent Activity va Settings (`user_settings` + profildagi daraja/kunlik maqsad) Supabase'dan keladi. Learning Path, Core Skills, welcome banner'dagi "24 new words", bildirishnomalar, Idiom of the Day va Admin panellari hamon **hardcoded**. Gemini AI yo'q, bundle'da uning kaliti uchun joy ham yo'q.
 
 Git repozitoriy — **ha**. Remote: <https://github.com/abdimuratovv/lingoglass> (`origin`, `main` branch). 2026-08-21 da `git init` qilinib, bitta boshlang'ich commit bilan push qilindi — §8 dagi 2026-08-21 yozuviga qarang.
 
@@ -54,13 +54,13 @@ lingoglass/
 ├── .github/workflows/ci.yml  → GitHub Actions: npm ci → lint → typecheck → format:check → build (Node 22.x)
 ├── .claude/launch.json       → preview_start konfiguratsiyalari: lingoglass-dev (npm run dev, 3000), lingoglass-preview (npm run preview, 4173)
 ├── src/
-│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + ProfileProvider + XpStatsProvider + createRoot entry point
+│   ├── main.tsx              → StrictMode + BrowserRouter + AuthProvider + ProfileProvider + SettingsProvider + XpStatsProvider (tartib muhim: XpStats Settings'dagi vaqt zonasini o'qiydi)
 │   ├── vite-env.d.ts          → import.meta.env uchun TS turlari (VITE_SUPABASE_URL/ANON_KEY)
 │   ├── index.css             → Tailwind @theme tokenlar + glassmorphism CSS sinflari + hide-scrollbar/pb-safe
 │   ├── App.tsx                → /login (ochiq) + /* ProtectedRoute ichida AppShell (Sidebar+TopNav+MobileNav+<Routes>)
 │   ├── lib/
 │   │   ├── supabaseClient.ts  → createClient() + isSupabaseConfigured flag (placeholder URL bilan crash oldini oladi, §8 dagi 2026-09-06 yozuviga qarang)
-│   │   └── time.ts            → formatRelativeTime() — "Just now" / "5 minutes ago" / "Yesterday" / "Sep 12" (mahalliy kalendar kuni bo'yicha)
+│   │   └── time.ts            → formatRelativeTime() — "Just now" / "5 minutes ago" / "Yesterday" / "Sep 12" (mahalliy kalendar kuni bo'yicha) + browserTimeZone()
 │   ├── context/
 │   │   ├── authContext.ts     → AuthContext + AuthContextValue turi (faqat non-komponent — react-refresh lint qoidasi uchun ajratilgan)
 │   │   ├── AuthContext.tsx    → <AuthProvider> — session holati, signIn/signUp/signOut (tarmoq xatolarini try/catch bilan tutadi)
@@ -68,11 +68,15 @@ lingoglass/
 │   │   ├── profileContext.ts  → ProfileContext + Profile turi + avatarUrl()/displayName() yordamchilari
 │   │   ├── ProfileContext.tsx → <ProfileProvider> — joriy userning profiles qatori + updateProfile(full_name/bio)
 │   │   ├── useProfile.ts      → useProfile() hook
+│   │   ├── settingsContext.ts → SettingsContext + SettingsContextValue turi
+│   │   ├── SettingsContext.tsx → <SettingsProvider> — user_settings qatori + updateSettings() (optimistik, yozuvlar navbat bilan)
+│   │   ├── useSettings.ts     → useSettings() hook (Settings, Leaderboard, XpStatsProvider)
 │   │   ├── xpStatsContext.ts  → XpStatsContext + XpStatsContextValue turi
-│   │   ├── XpStatsContext.tsx → <XpStatsProvider> — get_my_xp_stats() (umumiy XP + streak); CourseDetail dars tugatganda reload() qiladi
+│   │   ├── XpStatsContext.tsx → <XpStatsProvider> — get_my_xp_stats(tz) (umumiy XP + streak, tz = Settings'dagi zona yoki brauzer); CourseDetail dars tugatganda reload() qiladi
 │   │   └── useXpStats.ts      → useXpStats() hook
 │   ├── data/
-│   │   ├── useAsyncData.ts    → barcha data hook'lar asosi: useAsyncData(key, load) → { data, loading, error, refreshing, reload } (§7)
+│   │   ├── useAsyncData.ts    → barcha data hook'lar asosi: useAsyncData(key, load) → { data, loading, error, refreshing, reload, mutate } (§7)
+│   │   ├── settings.ts        → UserSettings turi (ustun nomlari bazadagidek), fetchSettings(), saveSettings() (0 qator = RLS rad etdi → xato)
 │   │   ├── courses.ts         → Course/Lesson turlari, getCourseStats(), fetchCourses(userId, courseId?) — Supabase'dan kurs+dars+progress
 │   │   ├── useCourses.ts      → useCourses(courseId?) hook — { courses, loading, error, refreshing, reload }
 │   │   ├── xp.ts              → XpStats/XpEvent/LeaderboardEntry turlari, fetchXpStats(), fetchRecentXpEvents(), fetchLeaderboard(), leaderboardName()
@@ -84,7 +88,8 @@ lingoglass/
 │   │   ├── MobileNav.tsx        → mobil pastki nav, useLocation() orqali active holat
 │   │   ├── ProtectedRoute.tsx   → session yo'q bo'lsa /login'ga redirect (kelgan joyini location.state.from'da saqlaydi)
 │   │   └── ui/
-│   │       ├── Toggle.tsx        → Settings'dagi takrorlangan switch markup shu yerga chiqarilgan
+│   │       ├── Toggle.tsx        → controlled switch (`checked`/`onChange`, `role="switch"`) — Settings'da
+│   │       ├── Select.tsx        → native `<select>` o'rniga glass dropdown (portal + fixed, `searchable` rejimi, to'liq klaviatura/ARIA) — §5
 │   │       └── StatusPanel.tsx   → yuklanish / xato (+ Try again) / bo'sh holat uchun glass panel
 │   └── pages/
 │       ├── Login.tsx          → email/parol signin+signup formasi, glass-panel dizayniga mos
@@ -92,7 +97,7 @@ lingoglass/
 │       ├── MyCourses.tsx
 │       ├── CourseDetail.tsx      → useParams() bilan courseId oladi; topilmasa /courses'ga redirect
 │       ├── Leaderboard.tsx
-│       ├── Settings.tsx
+│       ├── Settings.tsx       → 4 tab (`?tab=` query param — deep-link), user_settings + profiles.cefr_level/daily_goal_minutes
 │       └── admin/
 │           ├── AdminPage.tsx
 │           ├── AdminContentManager.tsx
@@ -120,7 +125,7 @@ Router **bor** — `react-router-dom` (`BrowserRouter` + `AuthProvider`, [src/ma
 | `/courses`           | `MyCourses`                                                                 |      ha       |
 | `/courses/:courseId` | `CourseDetail` — kurs bazada topilmasa `<Navigate to="/courses" replace />` |      ha       |
 | `/leaderboard`       | `Leaderboard`                                                               |      ha       |
-| `/settings`          | `Settings`                                                                  |      ha       |
+| `/settings`          | `Settings` — faol tab `?tab=notifications\|language\|privacy\|learning`dan  |      ha       |
 | `/admin`             | `AdminPage` (ichida `content`/`quizzes`/`users` tab'lari `useState` bilan)  |      ha       |
 | `*` (noma'lum yo'l)  | `<Navigate to="/" replace />`                                               |      ha       |
 
@@ -134,8 +139,8 @@ Sahifa o'tish animatsiyasi: `AnimatePresence mode="wait"` + `motion.div key={loc
 
 - `Dashboard` — welcome banner, `LearningPathSection`, 4 ta core skill card, recent activity (`xp_events`dan, oxirgi 5 ta), "Idiom of the Day"
 - `MyCourses` → `CourseDetail` — kurslar grid'i, bosilganda `/courses/:id`ga navigate qiladi
-- `Leaderboard` — `leaderboard_current_week` view'idan: top-3 podium (3 kishidan kam bo'lsa bo'sh joylar xira), "Your Position" kartasi, qolgan reyting (top 50)
-- `Settings` — 4 ta tab (Notifications / Language / Privacy / Learning)
+- `Leaderboard` — `leaderboard_current_week` view'idan: top-3 podium (3 kishidan kam bo'lsa bo'sh joylar xira), "Your Position" kartasi (Settings'da yashiringan bo'lsa — "You're hidden" + `/settings?tab=privacy` havolasi), qolgan reyting (top 50)
+- `Settings` — 4 ta tab (Notifications / Language / Privacy / Learning), o'zgarish darhol saqlanadi ("Saving…/Saved"); hali hech narsaga ta'sir qilmaydigan sozlamalarda "Not active yet" belgisi, Notifications tab'ida umumiy izoh (§8 dagi 2026-09-28 yozuvi)
 - `AdminPage` — 3 ta tab (`AdminContentManager` / `AdminQuizBuilder` / `AdminUserManagement`)
 
 ## 5. Dizayn tizimi
@@ -148,6 +153,8 @@ Sahifa o'tish animatsiyasi: `AnimatePresence mode="wait"` + `motion.div key={loc
 - `.podium-stand` / `.podium-stand-gold` — Leaderboard podium uchun
 - `.liquid-blob` / `.mobile-liquid-blob` — sidebar/mobil nav faol elementini ko'rsatuvchi animatsiyali blob (`layoutId="sidebar-liquid-blob"` va `"mobile-liquid-blob"` orqali `motion` boshqaradi)
 
+- **Dropdown/select — faqat [ui/Select](src/components/ui/Select.tsx).** Native `<select>`ning ochiladigan ro'yxatini OS chizadi va uni CSS bilan bezab bo'lmaydi (dizayndan tushib qoladi), shuning uchun loyihada native `<select>` ishlatilmaydi. Ro'yxat oynasi TopNav dropdown'lari bilan bir uslubda (`bg-white/90 backdrop-blur-xl rounded-2xl`, faol variant `bg-amaranth/10 text-amaranth`, tanlangani ✓), ochilish animatsiyasi `profileDropIn` (`motion-safe:` — reduced-motion'da o'chadi). 15+ variantli ro'yxatlarga `searchable` bering. Ko'rinadigan label bo'lsa `<label htmlFor>` + `id`, bo'lmasa `label` prop (aria-label).
+
 Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant ixtiro qilmaslik kerak.
 
 ## 6. Bilingan muammolar
@@ -159,10 +166,10 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 1. Accessibility strukturaviy/semantik jihatdan yaxshi holatda (§8 dagi 4-bosqich yozuviga qarang — icon-only tugmalar, progress-bar'lar, tab-almashtiruvchilar, rang+ikonka orqali uzatiladigan ma'lumot hammasi ko'rib chiqilgan), lekin **vizual** audit (rang kontrasti, `prefers-reduced-motion`, ekran o'lchamlarida real screen-reader/klaviatura sinovi) hali qilinmagan — bu sessiyada Browser pane haqiqiy fokus/compositing holatiga ega bo'lmagani uchun (`document.hasFocus()` doim `false`) vizual/fokus holatlarini avtomatik tekshirib bo'lmadi, faqat build'dagi CSS qoidalari va DOM/ARIA atributlari orqali tasdiqlandi.
 2. Frontend uchun test yo'q (ESLint + Prettier + GitHub Actions CI bor, §8 dagi 5-bosqich va 2026-08-21 yozuvlariga qarang). Migratsiya faqat bir martalik PGlite sinovidan o'tgan (§8 dagi 2026-09-24 yozuvi), repoda doimiy SQL/RLS test yo'q.
 3. **Frontend admin himoyasi yo'q:** `/admin` va Sidebar/MobileNav'dagi "Admin" havolasi har qanday login qilgan userga ko'rinadi. Yozishni RLS (`is_admin()`) to'xtatadi, lekin UI'da `is_admin()` bo'yicha yashirish/`AdminRoute` kerak.
-4. **Auth UI qisman:** parolni tiklash oqimi yo'q; email'ni o'zgartirish yo'q (profil panelida faqat ko'rsatiladi); avatar yuklash (kamera tugmasi) ishlamaydi — Storage bucket kerak; Settings'dagi "Change Password" va toggle'lar hech narsa saqlamaydi.
-5. Darsni tugatish o'z-o'zini belgilash: darslarda kontent yo'q, `complete_lesson()` "tugatdi"ni tekshira olmaydi — XP takrorlanmaydi va ketma-ketlik majburiy, lekin darslarni tez bosib chiqish mumkin. `submit_quiz_answer()` urinishlar sonini cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta).
-6. **Backend qisman ulangan:** auth, profil, kurslar/progress, darsni tugatish (`complete_lesson`), Leaderboard, TopNav streak/XP va Recent Activity ulangan (§8 dagi 2026-09-24 va 2026-09-26 yozuvlari). Learning Path, Core Skills, welcome banner matni ("24 new words this week"), bildirishnomalar (jumladan soxta "5-Day Streak!" — haqiqiy streak'ga zid bo'lishi mumkin), Idiom of the Day, Settings va Admin hamon hardcoded.
-7. **Leaderboard haftasi UTC bo'yicha** (`date_trunc('week', now())` — dushanba 00:00 UTC, Toshkentda 05:00), streak esa userning brauzer vaqt zonasida. Sahifada "resets every Monday at 00:00 UTC" deb yozilgan. `show_on_leaderboard = false` bo'lgan user reytingda ko'rinmaydi, lekin "Your Position" kartasi unga "bu hafta XP yo'q" deb ko'rsatadi — Settings ulanganda aniqlashtirish kerak. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
+4. **Auth UI qisman:** parolni tiklash oqimi yo'q; email'ni o'zgartirish yo'q (profil panelida faqat ko'rsatiladi); avatar yuklash (kamera tugmasi) ishlamaydi — Storage bucket kerak; Settings'dagi "Update Password" va "Delete Account" tugmalari hech narsa qilmaydi (parol — `auth.updateUser`, akkaunt o'chirish — service role'li server funksiyasi kerak).
+5. **Darslarda kontent umuman yo'q** — `lessons` jadvalida faqat `title`/`duration_minutes`/`type` bor, video/matn/audio uchun ustun yo'q; dars qatorini ochib bo'lmaydi, faqat "Complete". `complete_lesson()` "tugatdi"ni tekshira olmaydi — XP takrorlanmaydi va ketma-ketlik majburiy, lekin darslarni tez bosib chiqish mumkin. **Quiz'lar o'quvchiga yetib bormaydi:** seed'dagi 11 ta `quiz` turidagi dars `quizzes`ga bog'lanmagan (`lesson_id = null`), `submit_quiz_answer()` va `quiz_answer_options_public` frontendda chaqirilmaydi. `submit_quiz_answer()` urinishlar sonini ham cheklamaydi — user variantlarni ketma-ket sinab to'g'risini topib XP olishi mumkin (har savol uchun faqat bir marta).
+6. **Backend qisman ulangan:** auth, profil, kurslar/progress, darsni tugatish (`complete_lesson`), Leaderboard, TopNav streak/XP, Recent Activity va Settings ulangan (§8 dagi 2026-09-24, 2026-09-26, 2026-09-28 yozuvlari). Learning Path, Core Skills, welcome banner matni ("24 new words this week"), bildirishnomalar (jumladan soxta "5-Day Streak!" — haqiqiy streak'ga zid bo'lishi mumkin), Idiom of the Day va Admin hamon hardcoded. Settings'dagi 8 ta sozlama saqlanadi, lekin hali hech narsaga ta'sir qilmaydi: 4 ta bildirishnoma toggle'i (tab boshida "LingoGlass doesn't send notifications yet" izohi), Interface Language, Share Progress, Daily Goal, Focus Areas ("Not active yet" belgisi).
+7. **Leaderboard haftasi UTC bo'yicha** (`date_trunc('week', now())` — dushanba 00:00 UTC, Toshkentda 05:00), streak esa Settings'dagi vaqt zonasida (tanlanmagan bo'lsa brauzer zonasida). Ikkalasi ham sahifalarda yozilgan. AI (Gemini) funksiyasi ham yo'q — agar kelajakda qo'shilsa, kalit **faqat server tomonda** (proxy orqali) saqlanishi kerak, `vite.config.ts`dagi `define` orqali klient bundle'ga inject qilinmasin (§8 dagi 2026-08-05 yozuviga qarang).
 
 ## 7. Konvensiyalar / qoidalar
 
@@ -176,10 +183,30 @@ Yangi UI qo'shganda avval shu sinflardan foydalanish kerak, yangi glass variant 
 - Bu loyihani Claude Code'ning Browser pane orqali test qilishda `document.hasFocus()` doim `false` va `document.visibilityState` doim `"hidden"` bo'ladi — ya'ni `:focus`/`:focus-within` CSS pseudo-klasslari va `requestAnimationFrame`ga tayanadigan animatsiyalar avtomatik tekshiruvda ishlamaydi, garchi kod to'g'ri bo'lsa ham (haqiqiy brauzerda muammo yo'q). Bunday holatlarda `getComputedStyle` + `document.activeElement` bilan emas, build'dagi CSS qoidalarini (`grep dist/assets/*.css`) va DOM/ARIA atributlarini tekshirib tasdiqlash kerak.
 - Kod yozishdan oldin/keyin `npm run lint` (ESLint) va `npm run format` (Prettier) ishga tushirish kerak — ikkalasi ham sozlangan (§8 dagi 5-bosqich yozuviga qarang). `npm run typecheck` (`tsc --noEmit`) alohida buyruq, `lint`ning bir qismi emas.
 - **Supabase klientini hech qachon `createClient(url ?? '', key ?? '')` bilan yaratmaslik** — bo'sh string bilan chaqirilsa `createClient` **sinxron throw** qiladi va butun ilova mount bo'lishdan oldin crash bo'ladi (§8 dagi 2026-09-06 yozuvida shu xato haqiqatan sodir bo'lgan va tuzatilgan). [src/lib/supabaseClient.ts](src/lib/supabaseClient.ts)dagi `isSupabaseConfigured` + placeholder URL naqshini davom ettirish kerak.
-- **Yangi data hook — [useAsyncData](src/data/useAsyncData.ts) ustiga** (`useCourses`, `useLeaderboard`, `useRecentActivity`, `XpStatsProvider` shunday). `load()` o'qiydigan har bir qiymat (userId, courseId, limit…) `key`ga kirishi **shart** — effect faqat `key`/`reload()` bo'yicha qayta ishlaydi (`load` `useEffectEvent` orqali o'qiladi). Qo'lda `useEffect` + `setState` bilan yangi naqsh yozilmasin.
+- **Yangi data hook — [useAsyncData](src/data/useAsyncData.ts) ustiga** (`useCourses`, `useLeaderboard`, `useRecentActivity`, `XpStatsProvider` shunday). `load()` o'qiydigan har bir qiymat (userId, courseId, limit…) `key`ga kirishi **shart** — effect faqat `key`/`reload()` bo'yicha qayta ishlaydi (`load` `useEffectEvent` orqali o'qiladi). Qo'lda `useEffect` + `setState` bilan yangi naqsh yozilmasin. Yoziladigan ma'lumot uchun optimistik yangilash — `mutate(updater)` + yozuvlarni promise-navbat bilan ketma-ket yuborish, xato bo'lsa `reload()` ([SettingsContext.tsx](src/context/SettingsContext.tsx) naqshi).
+- **Supabase `update()` RLS rad etsa xato qaytarmaydi — 0 qator qaytaradi.** Shuning uchun update'dan keyin `.select(...)` qilib, bo'sh natijani xato deb hisoblash kerak ([settings.ts](src/data/settings.ts)dagi `saveSettings`, ProfileContext'da `.single()` shu vazifani bajaradi).
+- **Sozlama saqlansa-yu, hali hech narsaga ta'sir qilmasa — UI'da "Not active yet" deb belgilanadi** (Settings'dagi `SettingRow notActive`). Funksiya haqiqatan qo'shilganda belgi olib tashlanadi. Userni "bu ishlayapti" deb chalg'itadigan jim sozlama qoldirilmasin.
 - Context fayllarini yozishda (`createContext` + Provider komponenti + hook) uchtasini **bitta faylga qo'ymaslik** — `react-refresh/only-export-components` lint ogohlantirishi beradi. Naqsh: `context/<name>Context.ts` (faqat `createContext` + tur, komponent yo'q) + `context/<Name>Context.tsx` (faqat Provider komponenti) + `context/use<Name>.ts` (faqat hook). [src/context/](src/context/) ga qarang.
 
 ## 8. Oxirgi yangilanish
+
+**2026-09-28 (kechroq) — Barcha native `<select>`lar glass `Select` komponentiga almashtirildi.** Foydalanuvchi Settings'dagi dropdown ro'yxatlari (OS'ning oq-ko'k native ro'yxati) dizaynga mos emasligini ko'rsatdi. Native `<option>`ni CSS bilan bezab bo'lmaydi, shuning uchun [ui/Select](src/components/ui/Select.tsx) yozildi (§5) va loyihadagi 6 ta select'ning hammasi (Settings: Interface Language, Time Zone, Daily Goal, Current Level; AdminQuizBuilder: Target Level, Category) shunga o'tkazildi. `lint`/`typecheck`/`format:check`/`build` toza.
+
+1. **Naqsh:** WAI-ARIA "select-only combobox" — trigger `<button role="combobox">`, fokus unda qoladi, faol variant `aria-activedescendant`; ↑/↓, PageUp/Down, Home/End, Enter/Space, Escape (fokus trigger'ga qaytadi), Tab, harf yozib variantga o'tish (typeahead). `searchable` rejimida (Time Zone, 420 variant) fokus qidiruv maydoniga o'tadi, `_` bo'shliq sifatida ham topiladi ("new y" → America/New York).
+2. **Ro'yxat `document.body`ga portal qilinadi, `position: fixed`** — `<main>` `overflow-y-auto` bo'lgani uchun `absolute` ro'yxat kesilib qolardi. Joylashuv state'siz (to'g'ridan-to'g'ri `style`, `useLayoutEffect`), scroll/resize'da qayta hisoblanadi; pastda joy yetmasa yuqoriga ochiladi (Time Zone'da tasdiqlandi), ekran chetidan chiqmaydi.
+3. AdminQuizBuilder'dagi select'lar `defaultValue`dan lokal `useState`ga o'tdi (hamon mock — bazaga yozmaydi) va `<label htmlFor>` bilan bog'landi (avval label select'ga bog'lanmagan edi).
+4. **Tekshiruv (Browser pane):** ochish/yopish, Escape → fokus qaytishi, klaviatura bilan ochish + qidiruv + strelkalar, typeahead (`g` → Grammar), Admin'da tanlash (B1 → C2) — hammasi ishladi. Settings'da hech narsa tanlanmadi (bazaga yozilmadi). Topilgan xato: flex qatorda trigger siqilib "E" bo'lib qolardi — `shrink-0` bilan tuzatildi.
+
+**2026-09-28 — Mock ma'lumotlar tahlili; Settings `user_settings`ga ulandi.** Migratsiya **shart emas** (ustunlar, RLS va grant'lar init'da tayyor edi). `lint`/`typecheck`/`format:check`/`build` toza.
+
+1. **Tahlil (foydalanuvchi so'rovi bo'yicha):** loyihaning barcha mock/yuzaki joylari aniqlandi. Eng muhimi — darslarda kontent ustuni yo'q va quiz'lar o'quvchiga yetib bormaydi (§6.5), ya'ni XP/streak/reyting haqiqiy, lekin "Complete" tugmasiga tayanadi. Qolganlari §6.6 da. Kelishilgan tartib: (1) Settings ← **shu yozuv**; (2) Idiom of the Day + bildirishnomalar (jadvallar tayyor); (3) manbasiz raqamlarni ("24 new words", Core Skills 75/40/55/20%) olib tashlash yoki hisoblash; (4) dars kontenti modeli + quiz yechish oynasi; (5) Admin.
+2. **Settings:** `SettingsProvider` (§7 uch faylli naqsh) `user_settings`ni o'qiydi. O'zgarish darhol saqlanadi: `useAsyncData.mutate()` bilan UI oldin yangilanadi, yozuvlar promise-navbat bilan ketma-ket yuboriladi (toggle tez bosilsa eski qiymat oxirgi bo'lib qolmasligi uchun), xato bo'lsa bazadan qayta o'qiladi va `role="alert"`. "Daily Goal" va "Current Level" — `profiles.daily_goal_minutes`/`cefr_level`ga (`ProfileUpdate` kengaytirildi; javob kelguncha sahifada draft qiymat turadi). Faol tab `?tab=` query param'da (deep-link). `Toggle` endi controlled + `role="switch"`.
+3. **Bazaga zid bo'lgan eski qiymatlar:** sahifa avval "30 mins / day" va "B1 Intermediate" ko'rsatardi — haqiqiy akkauntda bazada `15` va `null` ekan. "Current Level" endi "Not set" variantiga ega va C2 qo'shildi. Time Zone'da `defaultValue="Asia/Tashkent"` hech bir `<option>`ga mos kelmasdi, variantlardagi "America/New_York (UTC-5)" yozda noto'g'ri edi.
+4. **Time Zone endi haqiqatan ishlaydi:** `Intl.supportedValuesOf('timeZone')` (418 ta + brauzer ro'yxatiga kirmaydigan `UTC`, joriy `GMT±` siljish bilan, bir marta hisoblanadi ~90 ms) + "Automatic (brauzer zonasi)" = `null`. `XpStatsProvider` streak'ni shu zonada so'raydi va sozlamalar yuklanguncha kutadi (aks holda streak ikki zona orasida "sakraydi"). Noma'lum zona serverda UTC'ga tushadi.
+5. **Learning Language** select'i (French/German/Japanese) statik "English"ga almashtirildi — platforma faqat ingliz tilini o'rgatadi (§1), boshqa tilni tanlash hech narsani o'zgartirmasdi. `learning_language` ustuni yozilmaydi (default `'en'`).
+6. **Leaderboard:** `show_on_leaderboard = false` bo'lsa "You're hidden from the leaderboard" kartasi + `/settings?tab=privacy` havolasi (avval yashiringan userga "bu hafta XP yo'q" deb noto'g'ri aytilardi — §6.7 dagi ochiq masala yopildi). "Not on the board yet" kartasi sozlamalar yuklanguncha chiqmaydi.
+7. **Tekshiruv (Browser pane, haqiqiy akkaunt, foydalanuvchi o'zi login qildi va yozish testiga ruxsat berdi):** barcha tab'lardagi qiymatlar bazaga mos; "Show on Leaderboard" o'chirildi → UI darhol, "Saving… → Saved", bazada `false`; Leaderboard'da "hidden" kartasi; "Privacy settings" havolasi Privacy tab'ini ochdi; qayta yoqildi → bazadagi 10 ta ustun testdan oldingi holatga to'liq qaytdi. Konsol/server xatosi yo'q. Tor ekranda (800px) Time Zone izohi siqilib qolgani topildi — qator vertikal qilindi.
+8. **Ataylab qilinmagan:** Update Password / Delete Account (§6.4); `user_settings` ustunlariga CHECK cheklovlari (qiymatlar erkin matn — faqat o'z qatori, xavf past; kerak bo'lsa alohida migratsiya).
 
 **2026-09-26 — Leaderboard, XP/streak va Recent Activity Supabase'ga ulandi.** `lint`/`typecheck`/`format:check`/`build` toza; SQL PGlite'da production zanjiri (init → fix → seed → complete_lesson → yangi migratsiya ×2) bilan 44/44 sinaldi.
 

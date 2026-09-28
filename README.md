@@ -5,7 +5,7 @@
 
 Ingliz tili o'rganish platformasi uchun frontend dashboard prototipi. Dizayn konsepsiyasi — _Light Theme Liquid Glassmorphism_: shaffof/blur'langan panellar va `layoutId` orqali "suyuq" animatsiyali navigatsiya indikatori.
 
-> **Loyiha holati:** UI + Supabase backend (Frankfurt). Auth (signup/login/logout, protected route), joriy userning profili, kurslar/darslar/progress, haftalik Leaderboard, XP/streak (TopNav) va Dashboard'dagi Recent Activity bazadan keladi. Bildirishnomalar, Settings va Admin panellari hamon hardcoded. Schema [`supabase/migrations/`](supabase/migrations/) da, boshlang'ich kontent [`supabase/seed.sql`](supabase/seed.sql) da.
+> **Loyiha holati:** UI + Supabase backend (Frankfurt). Auth (signup/login/logout, protected route), joriy userning profili, kurslar/darslar/progress, haftalik Leaderboard, XP/streak (TopNav) Dashboard'dagi Recent Activity va Settings (`user_settings` + profildagi daraja/kunlik maqsad) bazadan keladi. Bildirishnomalar va Admin panellari hamon hardcoded. Schema [`supabase/migrations/`](supabase/migrations/) da, boshlang'ich kontent [`supabase/seed.sql`](supabase/seed.sql) da.
 
 ## Texnologiyalar
 
@@ -84,7 +84,7 @@ src/
 │   ├── useCourses.ts           # useCourses() hook
 │   ├── xp.ts                   # XpStats/XpEvent/LeaderboardEntry, fetchXpStats/RecentXpEvents/Leaderboard
 │   └── useLeaderboard.ts / useRecentActivity.ts
-├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle, ui/StatusPanel
+├── components/                # TopNav, Sidebar, MobileNav, ProtectedRoute, ui/Toggle, ui/Select, ui/StatusPanel
 └── pages/                     # Login, Dashboard, MyCourses, CourseDetail, Leaderboard,
                                # Settings, admin/*
 ```
@@ -115,7 +115,7 @@ Brend ranglari (`@theme` orqali): `--color-amaranth: #E63946` (aksent), `--color
 
 `.env.local` **hech qachon commit qilinmaydi** (`.gitignore`da). `anon` kalit RLS orqali himoyalangan, klient tomonda ishlatilishi uchun mo'ljallangan — lekin `service_role` kalitini hech qachon frontend kodiga qo'ymang.
 
-**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi), darsni tugatish (`complete_lesson()` — progress + XP), `leaderboard_current_week` (Leaderboard sahifasi), `xp_events` (Dashboard → Recent Activity), `get_my_xp_stats()` (TopNav'dagi streak + umumiy XP). **Hali ulanmagan:** `notifications`, `user_settings`, `quizzes`, `idioms`, `resources` va Admin panellari.
+**Ulangan:** auth, `profiles` (TopNav/Dashboard, profilni tahrirlash), `courses` + `lessons` + `lesson_progress` (My Courses / kurs sahifasi), darsni tugatish (`complete_lesson()` — progress + XP), `leaderboard_current_week` (Leaderboard sahifasi), `xp_events` (Dashboard → Recent Activity), `get_my_xp_stats()` (TopNav'dagi streak + umumiy XP), `user_settings` (Settings sahifasi; vaqt zonasi streak hisobiga ta'sir qiladi). **Hali ulanmagan:** `notifications`, `quizzes`, `idioms`, `resources` va Admin panellari.
 
 ## Deploy (Render)
 
@@ -136,7 +136,8 @@ Loyiha sof client-side SPA (server kodi yo'q) — Render'da **Static Site** sifa
 - [x] Supabase auth ulash (signup/login/logout, protected route)
 - [x] Kurslar va profilni hardcoded'dan Supabase'ga o'tkazish
 - [x] Leaderboard, XP/streak va Recent Activity'ni Supabase'ga ulash
-- [ ] Bildirishnomalar/Settings'ni Supabase'ga ulash
+- [x] Settings'ni Supabase'ga ulash (`user_settings`)
+- [ ] Bildirishnomalarni Supabase'ga ulash
 - [ ] Test infratuzilmasi (hozircha test yo'q)
 - [ ] Vizual accessibility audit (rang kontrasti, `prefers-reduced-motion`)
 - [ ] Placeholder rasmlarni (`picsum.photos`) real assetlarga almashtirish

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Trophy, Award, TrendingUp, Minus } from 'lucide-react';
+import { Trophy, Award, TrendingUp, Minus, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { useSettings } from '../context/useSettings';
 import { avatarUrl } from '../context/profileContext';
 import { useLeaderboard } from '../data/useLeaderboard';
 import { leaderboardName, type LeaderboardEntry, type LeaderboardTrend } from '../data/xp';
@@ -33,6 +34,9 @@ const PODIUM_STYLES: Record<Place, { ring: string; badge: string; stand: string;
 export function Leaderboard() {
   const { user } = useAuth();
   const { leaderboard, loading, error, reload } = useLeaderboard();
+  const { settings, loading: settingsLoading } = useSettings();
+  // Settings'da "Show on Leaderboard" o'chiq — view userni umuman chiqarmaydi, shuning uchun `me` ham null bo'ladi.
+  const hidden = settings?.show_on_leaderboard === false;
 
   const entries = leaderboard?.entries ?? [];
   const me = leaderboard?.me ?? null;
@@ -113,8 +117,29 @@ export function Leaderboard() {
         </div>
       )}
 
-      {/* Bu hafta hali XP yo'q */}
-      {leaderboard && me === null && (
+      {/* Reytingdan yashiringan */}
+      {leaderboard && hidden && (
+        <div className="leaderboard-hero-panel rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 border-l-4 border-l-navy/30">
+          <div className="w-9 h-9 rounded-full bg-navy/5 flex items-center justify-center text-navy/60 shrink-0">
+            <EyeOff size={18} aria-hidden="true" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-navy/60 mb-0.5">Your Position</p>
+            <p className="text-charcoal/80">
+              You're hidden from the leaderboard — other learners can't see your name or XP.
+            </p>
+          </div>
+          <Link
+            to="/settings?tab=privacy"
+            className="bg-charcoal hover:bg-charcoal/90 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shrink-0 text-center"
+          >
+            Privacy settings
+          </Link>
+        </div>
+      )}
+
+      {/* Bu hafta hali XP yo'q (sozlamalar yuklanguncha kutiladi — yashirin userga noto'g'ri karta chiqmasin) */}
+      {leaderboard && me === null && !hidden && !settingsLoading && (
         <div className="leaderboard-hero-panel rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 border-l-4 border-l-amaranth">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold uppercase tracking-wider text-amaranth/70 mb-0.5">Your Position</p>

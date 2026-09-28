@@ -1,4 +1,13 @@
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+/** Brauzerning IANA vaqt zonasi (masalan "Asia/Tashkent"). */
+export function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
 const DAY_MS = 86_400_000;
 
 function startOfLocalDay(d: Date): number {

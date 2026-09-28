@@ -35,19 +35,13 @@ export interface Leaderboard {
   me: LeaderboardEntry | null;
 }
 
-/** Brauzerning IANA vaqt zonasi (masalan "Asia/Tashkent") — streak kunlari shu zonada hisoblanadi. */
-function browserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-}
-
-/** Umumiy XP va streak — get_my_xp_stats() RPC (20260926000000_xp_stats.sql). */
-export async function fetchXpStats(): Promise<XpStats> {
+/**
+ * Umumiy XP va streak — get_my_xp_stats() RPC (20260926000000_xp_stats.sql). Streak kunlari `timeZone`
+ * (IANA) bo'yicha hisoblanadi; server noma'lum zonani xato bermay UTC'ga tushiradi.
+ */
+export async function fetchXpStats(timeZone: string): Promise<XpStats> {
   const { data, error } = await supabase
-    .rpc('get_my_xp_stats', { p_tz: browserTimeZone() })
+    .rpc('get_my_xp_stats', { p_tz: timeZone })
     .single()
     .overrideTypes<{ total_xp: number; streak_days: number; active_today: boolean }, { merge: false }>();
   if (error) throw new Error(error.message);
